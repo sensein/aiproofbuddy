@@ -4,7 +4,7 @@ services:
     build: .
     image: scientific-evaluation-ui:dev
     ports:
-      - "3000:3000"
+      - "3007:3007"
     volumes:
       - ./uploads:/app/uploads
       - .:/app  # Optional: live code changes inside container
