@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Proof Buddy
+
+AI Proof Buddy is a web application designed to help humans in evaluating the output of AI systems, particularly large language models (LLMs) and agentic frameworks. It provides a simple interface where users upload AI result in JSON format, review, correct, and validate AI-generated content—ensuring higher accuracy and reliability of AI outputs.
+## Features
+
+- **Directory Upload**: Upload entire directories of JSON files while preserving the folder structure
+- **File Management**: Browse, download, evaluate, and delete files in a tree view
+- **Evaluation Interface**: Evaluate JSON data with a user-friendly interface
+  - Approve or reject entities
+  - Add remarks and corrections
+  - Save evaluations alongside original files
+- **Bulk Export**: Export evaluations. 
 
 ## Getting Started
+- Step 1: Upload or paste AI-generated content/output. Note: The uploaded content must be in JSON format and organized within a directory.
+- Step 2: Go to the Uploaded Files, review the content and provide feedback (thumbs up/down, corrections).
+- Step 3: Save and export the evaluated results.
+### Prerequisites
 
-First, run the development server:
+- Node.js 18.x or later
+- npm 9.x or later
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Installation
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd aiproofbuddy
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-## Learn More
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-To learn more about Next.js, take a look at the following resources:
+### Installation via Docker
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd aiproofbuddy
+   ```
+2. Run Docker Compose. Note you must have Docker installed in your system.
+   ```bash
+   docker compose up
+   ```
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+   
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Uploading Files
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Click the "Upload" button or drag and drop a directory containing JSON files
+2. The files will be uploaded while preserving the directory structure
+3. You can upload multiple directories, and they will be merged
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Demo 
+- [https://www.youtube.com/watch?v=KKARQ46GmFc](https://www.youtube.com/watch?v=KKARQ46GmFc)
