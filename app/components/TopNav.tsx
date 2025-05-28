@@ -46,6 +46,12 @@ export default function TopNav() {
                 Export Result
               </Link>
             </li>
+            <li className="nav-item">
+              <Link href="/help" className={`nav-link ${isActive('/help')}`}>
+                <i className="bi bi-info-circle me-1"></i>
+                Help
+              </Link>
+            </li>
           </ul>
         </div>
       </div>
