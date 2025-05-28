@@ -50,7 +50,7 @@ AI Proof Buddy is a web application designed to help humans in evaluating the ou
 ### Installation via Docker
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/sensein/aiproofbuddy.git
    cd aiproofbuddy
    ```
 2. Run Docker Compose. Note you must have Docker installed in your system.
