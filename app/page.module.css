@@ -28,68 +28,178 @@
 }
 
 .main {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  grid-row-start: 2;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: #f5f5f5;
 }
 
-.main ol {
-  font-family: var(--font-geist-mono);
-  padding-left: 0;
-  margin: 0;
-  font-size: 14px;
-  line-height: 24px;
-  letter-spacing: -0.01em;
-  list-style-position: inside;
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
-.main li:not(:last-of-type) {
-  margin-bottom: 8px;
+.title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 1rem;
+  text-align: center;
 }
 
-.main code {
-  font-family: inherit;
-  background: var(--gray-alpha-100);
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-weight: 600;
+.description {
+  font-size: 1.2rem;
+  color: #666;
+  text-align: center;
+  margin-bottom: 2rem;
 }
 
-.ctas {
-  display: flex;
-  gap: 16px;
+.fileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
 }
 
-.ctas a {
-  appearance: none;
-  border-radius: 128px;
-  height: 48px;
-  padding: 0 20px;
-  border: none;
-  border: 1px solid transparent;
-  transition:
-    background 0.2s,
-    color 0.2s,
-    border-color 0.2s;
+.fileCard {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.fileCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.fileCard h2 {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.fileCard p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* Evaluation page styles */
+.evaluationContainer {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.entityCard {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.entityHeader {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  line-height: 20px;
+  margin-bottom: 1rem;
+}
+
+.entityTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.entityContent {
+  margin-bottom: 1rem;
+}
+
+.entityField {
+  margin-bottom: 0.5rem;
+}
+
+.fieldLabel {
   font-weight: 500;
+  color: #666;
+  margin-right: 0.5rem;
 }
 
-a.primary {
-  background: var(--foreground);
-  color: var(--background);
-  gap: 8px;
+.fieldValue {
+  color: #333;
 }
 
-a.secondary {
-  border-color: var(--gray-alpha-200);
-  min-width: 158px;
+.evaluationActions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.actionButton {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.thumbsUp {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.thumbsDown {
+  background-color: #f44336;
+  color: white;
+}
+
+.correctionForm {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8f8f8;
+  border-radius: 4px;
+}
+
+.correctionInput {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 4px;
+  background: #eee;
+  border-radius: 2px;
+  margin-bottom: 2rem;
+}
+
+.progressFill {
+  height: 100%;
+  background: #4CAF50;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.saveButton {
+  background-color: #2196F3;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+.saveButton:hover {
+  background-color: #1976D2;
 }
 
 .footer {
@@ -165,4 +275,660 @@ a.secondary {
   .logo {
     filter: invert();
   }
+}
+
+.error {
+  color: #f44336;
+  text-align: center;
+  padding: 1rem;
+  background: #ffebee;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+.noFiles {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.uploadSection {
+  margin: 2rem 0;
+}
+
+.uploadBox {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  background: white;
+  transition: border-color 0.3s, background-color 0.3s;
+}
+
+.uploadBox:hover {
+  border-color: #2196F3;
+  background: #f8f9fa;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadLabel {
+  display: block;
+  cursor: pointer;
+}
+
+.uploadContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.uploadIcon {
+  width: 48px;
+  height: 48px;
+  color: #666;
+}
+
+.uploadHint {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.progressContainer {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.sectionTitle {
+  font-size: 1.7rem;
+  color: #222;
+  margin: 2rem 0 0.5rem 0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sectionDescription {
+  color: #666;
+  font-size: 1.1rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.filesContainer {
+  margin-top: 2rem;
+}
+
+.directorySection {
+  margin-bottom: 2rem;
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.directoryTitle {
+  font-size: 1.3rem;
+  color: #333;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.fileCard h3 {
+  font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+
+.viewControls {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+  justify-content: center;
+}
+
+.viewButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewButton:hover {
+  background: #f5f5f5;
+}
+
+.viewButton.active {
+  background: #2196F3;
+  color: white;
+  border-color: #2196F3;
+}
+
+.treeView {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.treeNode {
+  margin: 0.5rem 0;
+}
+
+.treeContent {
+  margin-left: 1.5rem;
+  padding-left: 1rem;
+  border-left: 1px solid #eee;
+}
+
+.treeChild {
+  margin: 0.5rem 0;
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expandButton:hover {
+  color: #2196F3;
+}
+
+.treeFile {
+  padding: 0.5rem;
+  margin: 0.25rem 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.treeFile:hover {
+  background-color: #f5f5f5;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.searchContainer {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+
+.clearSearch {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.clearSearch:hover {
+  color: #f44336;
+}
+
+.sortControls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sortControls label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.sortSelect {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.sortSelect:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+
+.fileIcon {
+  margin-right: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.fileName {
+  flex: 1;
+  word-break: break-word;
+}
+
+.matchIndicator {
+  margin-left: 0.5rem;
+  color: #2196F3;
+  font-size: 0.9rem;
+}
+
+.treeFile {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  margin: 0.25rem 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.treeFile:hover {
+  background-color: #f5f5f5;
+}
+
+.treeFile.highlight {
+  background-color: #e3f2fd;
+}
+
+.expandButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.expandButton:hover {
+  color: #2196F3;
+}
+
+.expandButton::before {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  transition: transform 0.2s;
+}
+
+.expandButton[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchContainer {
+    width: 100%;
+  }
+
+  .viewControls {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sortControls {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 10px;
+  padding: 2rem 2.5rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.modalContent h2 {
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+  color: #222;
+}
+
+.modalContent p {
+  color: #444;
+  margin-bottom: 1.5rem;
+}
+
+.modalActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.replaceButton {
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.replaceButton:hover {
+  background: #d32f2f;
+}
+
+.mergeButton {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.mergeButton:hover {
+  background: #388e3c;
+}
+
+.cancelButton {
+  background: #eee;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.cancelButton:hover {
+  background: #ddd;
+}
+
+.evaluationTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  overflow: hidden;
+  font-size: 0.98rem;
+}
+.evaluationTable th, .evaluationTable td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+}
+.evaluationTable th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+.evaluationTable tr:last-child td {
+  border-bottom: none;
+}
+.evaluationTable tr:hover:not(.correctionRow) {
+  background: #f9f9f9;
+}
+
+.approvedLabel {
+  color: #4CAF50;
+  font-weight: 600;
+  background: #e8f5e9;
+  padding: 0.25em 0.7em;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+.correctionLabel {
+  color: #f44336;
+  font-weight: 600;
+  background: #ffebee;
+  padding: 0.25em 0.7em;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+.correctionRow td {
+  background: #f8f8f8;
+  border-bottom: none;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.evaluationTable button {
+  margin-right: 0.5em;
+  margin-bottom: 0.2em;
+}
+
+@media (max-width: 900px) {
+  .evaluationTable th, .evaluationTable td {
+    font-size: 0.92rem;
+    padding: 0.5rem 0.2rem;
+  }
+}
+
+.evaluationSummary {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+.summaryApproved {
+  color: #388e3c;
+}
+.summaryCorrected {
+  color: #f9a825;
+}
+.summaryPending {
+  color: #888;
+}
+
+.correctedRow {
+  background: #fffde7 !important;
+}
+.approvedRow {
+  background: #e8f5e9 !important;
+}
+.strikethrough {
+  text-decoration: line-through;
+  color: #bdbdbd;
+  margin-right: 0.5em;
+}
+.correctionValue {
+  color: #f9a825;
+  font-weight: 600;
+  margin-left: 0.5em;
+}
+
+.topNav {
+  display: flex;
+  gap: 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  padding: 1rem 2rem 0.5rem 2rem;
+  margin-bottom: 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topNav button {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px 6px 0 0;
+  transition: background 0.2s, color 0.2s;
+}
+.topNav button:hover {
+  background: #f5f5f5;
+  color: #2196F3;
+}
+.activeTab {
+  background: #2196F3 !important;
+  color: #fff !important;
+}
+
+.uploadedFilesTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  margin-top: 2rem;
+  overflow: hidden;
+}
+.uploadedFilesTable th, .uploadedFilesTable td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+}
+.uploadedFilesTable th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+.uploadedFilesTable tr:last-child td {
+  border-bottom: none;
+}
+.uploadedFilesTable tr:hover {
+  background: #f9f9f9;
+}
+.evaluatedBadge {
+  background: #e8f5e9;
+  color: #388e3c;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.2em 0.7em;
+  font-size: 0.95em;
+}
+.unevaluatedBadge {
+  background: #fffde7;
+  color: #f9a825;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.2em 0.7em;
+  font-size: 0.95em;
+}
+.actionButton {
+  background: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 1rem;
+  margin-right: 0.5em;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.actionButton:hover {
+  background: #1976D2;
+}
+.deleteButton {
+  background: #f44336;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 1rem;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.deleteButton:hover {
+  background: #b71c1c;
+}
+.bulkExportOptions {
+  display: flex;
+  gap: 1rem;
+  margin: 2rem 0 1rem 0;
+}
+.bulkExportOptions button {
+  background: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bulkExportOptions button:hover {
+  background: #1976D2;
+}
+.bulkExportOptions button:disabled {
+  background: #bdbdbd;
+  color: #fff;
+  cursor: not-allowed;
+}
+
+.navContainer {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
