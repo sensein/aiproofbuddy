@@ -126,7 +126,7 @@ export default function Help() {
                         <iframe
                             width="560"
                             height="315"
-                            src="https://www.youtube.com/embed/KKARQ46GmFc"
+                            src="https://www.youtube.com/embed/UAv-9UI49to"
                             title="AI Proof Buddy Demo"
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

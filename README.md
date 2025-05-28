@@ -61,4 +61,4 @@ AI Proof Buddy is a web application designed to help humans in evaluating the ou
    
 ## Usage
 
-- [https://www.youtube.com/watch?v=KKARQ46GmFc](https://www.youtube.com/watch?v=KKARQ46GmFc)
+- [https://www.youtube.com/watch?v=UAv-9UI49to](https://www.youtube.com/watch?v=UAv-9UI49to)
