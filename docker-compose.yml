@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    image: scientific-evaluation-ui:dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app  # Optional: live code changes inside container
+      - /app/node_modules  # protect container's node_modules
+    environment:
+      - NODE_ENV=development
