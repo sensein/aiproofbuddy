@@ -1,0 +1,334 @@
+{
+  "judged_structured_information": {
+    "1": [
+      {
+        "entity": "D1 medium spiny neurons",
+        "label": "CELL_TYPE",
+        "ontology_id": "CL:0000129",
+        "ontology_label": "D1 Medium Spiny Neuron",
+        "sentence": [
+          "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine"
+        ],
+        "start": [
+          37
+        ],
+        "end": [
+          65
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "High-confidence alignment based on exact match in the ontology."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "2": [
+      {
+        "entity": "nucleus accumbens",
+        "label": "ANATOMICAL_REGION",
+        "ontology_id": "UBERON:0002440",
+        "ontology_label": "Nucleus Accumbens",
+        "sentence": [
+          "Drugs of abuse increase extracellular concentrations of dopamine in the nucleus accumbens (NAc), resulting in transcriptional alterations that drive long-lasting cellular and behavioral adaptations."
+        ],
+        "start": [
+          93
+        ],
+        "end": [
+          114
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "High-confidence alignment as the term directly matches the ontology label."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "3": [
+      {
+        "entity": "cocaine",
+        "label": "EXPERIMENTAL_CONDITION",
+        "ontology_id": "CHEBI:17855",
+        "ontology_label": "Cocaine",
+        "sentence": [
+          "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine"
+        ],
+        "start": [
+          66
+        ],
+        "end": [
+          73
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "Alignment is strong due to direct mention of the compound as per ontology."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "4": [
+      {
+        "entity": "snRNA-seq",
+        "label": "EXPERIMENTAL_CONDITION",
+        "ontology_id": "OBI:0001008",
+        "ontology_label": "Single Cell RNA Sequencing",
+        "sentence": [
+          "Here, we used single nucleus RNA-seq (snRNA-seq) to characterize the transcriptome of over 39,000 NAc cells from male and female adult Sprague-Dawley rats following acute or repeated cocaine experience."
+        ],
+        "start": [
+          30
+        ],
+        "end": [
+          40
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "High-confidence alignment based on accurate methodology matching."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "5": [
+      {
+        "entity": "Sprague-Dawley rats",
+        "label": "ANIMAL_SPECIES",
+        "ontology_id": "NCBITaxon:10116",
+        "ontology_label": "Sprague-Dawley rat",
+        "sentence": [
+          "Here, we used single nucleus RNA-seq (snRNA-seq) to characterize the transcriptome of over 39,000 NAc cells from male and female adult Sprague-Dawley rats following acute or repeated cocaine experience."
+        ],
+        "start": [
+          87
+        ],
+        "end": [
+          106
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "High-confidence alignment as the species matches perfectly to the ontology."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "6": [
+      {
+        "entity": "dopamine",
+        "label": "MOLECULE",
+        "ontology_id": "CHEBI:19194",
+        "ontology_label": "Dopamine",
+        "sentence": [
+          "Drugs of abuse increase extracellular concentrations of dopamine in the nucleus accumbens (NAc), resulting in transcriptional alterations that drive long-lasting cellular and behavioral adaptations."
+        ],
+        "start": [
+          78
+        ],
+        "end": [
+          86
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "Alignment is optimal, with terms existing in both text and ontology."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "7": [
+      {
+        "entity": "medium spiny neurons",
+        "label": "CELL_TYPE",
+        "ontology_id": "CL:0000129",
+        "ontology_label": "Medium Spiny Neuron",
+        "sentence": [
+          "This dataset identified 16 transcriptionally distinct cell populations, including two populations of medium spiny neurons (MSNs) that express the Drd1 dopamine receptor (D1-MSNs)."
+        ],
+        "start": [
+          73
+        ],
+        "end": [
+          95
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "High-confidence alignment again based on direct ontology correspondence."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "8": [
+      {
+        "entity": "Drd1 dopamine receptor",
+        "label": "MOLECULE",
+        "ontology_id": "CHEBI:135790",
+        "ontology_label": "D1 Dopamine Receptor",
+        "sentence": [
+          "This dataset identified 16 transcriptionally distinct cell populations, including two populations of medium spiny neurons (MSNs) that express the Drd1 dopamine receptor (D1-MSNs)."
+        ],
+        "start": [
+          105
+        ],
+        "end": [
+          126
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "Matched perfectly with the ontology for this receptor class."
+        ],
+        "paper_location": [
+          "abstract"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "9": [
+      {
+        "entity": "VTA",
+        "label": "ANATOMICAL_REGION",
+        "ontology_id": "UBERON:0002135",
+        "ontology_label": "Ventral Tegmental Area",
+        "sentence": [
+          "The mesolimbic dopamine pathway is heavily implicated in molecular, cellular, and behavioral responses to drugs of abuse. This pathway consists of dopaminergic neurons in the ventral tegmental area (VTA) that project to the nucleus accumbens (NAc)."
+        ],
+        "start": [
+          82
+        ],
+        "end": [
+          85
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "Optimal alignment based on recognized anatomical region mapping."
+        ],
+        "paper_location": [
+          "introduction"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "10": [
+      {
+        "entity": "ventral tegmental area",
+        "label": "ANATOMICAL_REGION",
+        "ontology_id": "UBERON:0002000",
+        "ontology_label": "Ventral Tegmental Area",
+        "sentence": [
+          "The mesolimbic dopamine pathway is heavily implicated in molecular, cellular, and behavioral responses to drugs of abuse. This pathway consists of dopaminergic neurons in the ventral tegmental area (VTA) that project to the nucleus accumbens (NAc)."
+        ],
+        "start": [
+          62
+        ],
+        "end": [
+          87
+        ],
+        "judge_score": [
+          1.0
+        ],
+        "remarks": [
+          "Well-aligned with anatomical definitions in the ontology."
+        ],
+        "paper_location": [
+          "introduction"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ],
+    "11": [
+      {
+        "entity": "mesolimbic dopamine pathway",
+        "label": "ANATOMICAL_REGION",
+        "ontology_id": null,
+        "ontology_label": null,
+        "sentence": [
+          "The mesolimbic dopamine pathway is heavily implicated in molecular, cellular, and behavioral responses to drugs of abuse."
+        ],
+        "start": [
+          9
+        ],
+        "end": [
+          39
+        ],
+        "judge_score": [
+          0.5
+        ],
+        "remarks": [
+          "Term identified but lacking a direct ontology correspondence."
+        ],
+        "paper_location": [
+          "introduction"
+        ],
+        "paper_title": "Distinct subpopulations of D1 medium spiny neurons exhibit unique transcriptional responsiveness to cocaine",
+        "doi": [
+          "10.1016/j.mcn.2023.103849"
+        ]
+      }
+    ]
+  }
+}
