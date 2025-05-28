@@ -61,11 +61,4 @@ AI Proof Buddy is a web application designed to help humans in evaluating the ou
    
 ## Usage
 
-### Uploading Files
-
-1. Click the "Upload" button or drag and drop a directory containing JSON files
-2. The files will be uploaded while preserving the directory structure
-3. You can upload multiple directories, and they will be merged
-
-## Demo 
 - [https://www.youtube.com/watch?v=KKARQ46GmFc](https://www.youtube.com/watch?v=KKARQ46GmFc)
