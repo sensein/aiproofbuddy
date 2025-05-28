@@ -33,6 +33,7 @@ export default function Help() {
                         in
                         enhancing the reliability of AI systems.
                     </p>
+                    <hr/>
 
                     <h4>Getting Started</h4>
                     <ul>
@@ -44,7 +45,7 @@ export default function Help() {
                         </li>
                         <li>Step 3: Save and export the evaluated results.</li>
                     </ul>
-
+                    <hr/>
                     <h4>Frequently Asked Questions</h4>
                     <ul>
                         <li><strong>Q: What types of AI outputs can I evaluate? </strong> <br/> <strong>A:</strong> You
@@ -105,7 +106,7 @@ export default function Help() {
                         </li>
                         <li>
                             <strong>Q: Why can't I upload a JSON file directly? Why does it need to be inside a
-                            folder? </strong> <br/>
+                                folder? </strong> <br/>
                             <strong>A:</strong> AI Proof Buddy is designed to organize content by directory. We support
                             multiple directories and files to help group related content together. To maintain this
                             structure, each file must be placed inside a directory when uploading.
@@ -114,8 +115,13 @@ export default function Help() {
                         </li>
 
                     </ul>
+                    <hr/>
 
                     <h4>Demo</h4>
+                    <p>This video shows how you can use <strong>AI Proof Buddy</strong> to upload AI-generated JSON
+                        data, review, approve or correct results, and export the final validated output. Watch
+                        this demo to get a quick overview of the tool in action.</p>
+                    <br/>
                     <div className="ratio ratio-16x9 mb-4">
                         <iframe
                             width="560"
@@ -127,7 +133,7 @@ export default function Help() {
                             allowFullScreen
                         ></iframe>
                     </div>
-
+                    <hr/>
 
                     <h4>Contact Support</h4>
                     <p>
