@@ -1,6 +1,13 @@
 # AI Proof Buddy
 
 AI Proof Buddy is a web application designed to help humans in evaluating the output of AI systems, particularly large language models (LLMs) and agentic frameworks. It provides a simple interface where users upload AI result in JSON format, review, correct, and validate AI-generated content—ensuring higher accuracy and reliability of AI outputs.
+
+![image](https://github.com/user-attachments/assets/b8b026bc-4b50-4518-a311-5cfdd91d3c9f)
+![image](https://github.com/user-attachments/assets/61679a12-d01f-4164-a765-09a04431f4ee)
+![image](https://github.com/user-attachments/assets/45bdc224-5cd9-4fdf-b6a9-43e9ec666387)
+
+
+
 ## Features
 
 - **Directory Upload**: Upload entire directories of JSON files while preserving the folder structure
