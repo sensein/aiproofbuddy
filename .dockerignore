@@ -1,0 +1,11 @@
+node_modules
+.next
+dist
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+npm-debug.log
+yarn-debug.log
+.env*
+# Do NOT ignore app/ or app/globals.css 
