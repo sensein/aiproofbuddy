@@ -228,18 +228,65 @@ export default function EvaluatePage() {
   const handleApprove = (entityId: string) => {
     const entity = evaluation[entityId]?.[0];
     if (entity) {
+      let corrections: Record<string, any> = {};
+      if (Array.isArray(entity.sentence)) {
+        // Robustly handle entity.entity as array or single value
+        const entityEntities = Array.isArray(entity.entity)
+          ? entity.entity
+          : entity.entity !== undefined
+            ? Array(entity.sentence.length).fill(entity.entity)
+            : [];
+        const newStarts: number[] = [];
+        const newEnds: number[] = [];
+        const oldStarts = Array.isArray(entity.start) ? entity.start : Array(entity.sentence.length).fill("");
+        const oldEnds = Array.isArray(entity.end) ? entity.end : Array(entity.sentence.length).fill("");
+        let changed = false;
+        entity.sentence.forEach((sentence: string, idx: number) => {
+          const entityText = entityEntities[idx];
+          if (typeof sentence === 'string' && typeof entityText === 'string') {
+            const lowerSentence = sentence.toLowerCase();
+            const lowerEntity = entityText.toLowerCase();
+            const foundIdx = lowerSentence.indexOf(lowerEntity);
+            if (foundIdx !== -1) {
+              newStarts[idx] = foundIdx;
+              newEnds[idx] = foundIdx + entityText.length;
+              if (oldStarts[idx] !== foundIdx || oldEnds[idx] !== foundIdx + entityText.length) {
+                changed = true;
+              }
+            } else {
+              newStarts[idx] = oldStarts[idx];
+              newEnds[idx] = oldEnds[idx];
+            }
+          } else {
+            newStarts[idx] = oldStarts[idx];
+            newEnds[idx] = oldEnds[idx];
+          }
+        });
+        if (changed) {
+          corrections.start = [...oldStarts];
+          corrections.end = [...oldEnds];
+        }
+        setEvaluation(prev => ({
+          ...prev,
+          [entityId]: prev[entityId].map((e, i) =>
+            i === 0 ? { ...e, approved: true, corrections, start: newStarts, end: newEnds } : e
+          ),
+        }));
+        setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
+        setEditMode(prev => ({ ...prev, [entityId]: false }));
+        return;
+      }
+      // Fallback: single sentence/entity
       const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
       const entityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
       let start = Array.isArray(entity.start) ? entity.start[0] : entity.start;
       let end = Array.isArray(entity.end) ? entity.end[0] : entity.end;
-      let corrections: Record<string, any> = {};
       if (sentence && entityText) {
         const lowerSentence = sentence.toLowerCase();
         const lowerEntity = entityText.toLowerCase();
         const idx = lowerSentence.indexOf(lowerEntity);
         if (idx !== -1 && (start !== idx || end !== idx + entityText.length)) {
-          // Store the original start/end before updating
-          corrections = { start: entity.start, end: entity.end };
+          corrections = { start, end };
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
@@ -365,10 +412,11 @@ export default function EvaluatePage() {
 
     setSaving(true);
     try {
-      // Deep copy the original data
-      const mergedData = JSON.parse(JSON.stringify(data));
+      // Use the correct base for merging: if editing _eval.json, use evaluation as base; else use data
+      const isEvalFile = filePath.endsWith('_eval.json');
+      const mergedData = isEvalFile ? JSON.parse(JSON.stringify({ judged_structured_information: evaluation })) : JSON.parse(JSON.stringify(data));
 
-      // Find the key in the original data that holds the entities
+      // Find the key in the base data that holds the entities
       let entityKey = null;
       if (mergedData && typeof mergedData === 'object') {
         for (const [key, value] of Object.entries(mergedData)) {
@@ -400,7 +448,7 @@ export default function EvaluatePage() {
               const origEntity = arr[0];
               const evalEntity = getEvalEntity(key);
               if (evalEntity) {
-                // Build corrections object with old values only (deep equality check)
+                // Build corrections object with old values only (deep equality check, including arrays)
                 const corrections: Record<string, any> = {};
                 Object.keys(evalEntity).forEach(field => {
                   if (
@@ -748,31 +796,63 @@ export default function EvaluatePage() {
                             if (Array.isArray(value) && value.length > 0) {
                               // Special formatting for remarks, paper_title, doi, paper_location, judge_score, etc.
                               if (field === 'remarks' || field === 'paper_title' || field === 'doi' || field === 'paper_location' || field === 'judge_score') {
+                                const origArr = corrections && corrections.hasOwnProperty(field) && Array.isArray(corrections[field]) ? corrections[field] : null;
                                 return (
                                   <div key={field} className="mb-2">
                                     <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
                                     <ul className="mb-0 ps-3">
-                                      {value.map((v: any, idx: number) => (
-                                        <li key={idx}>{v}</li>
-                                      ))}
+                                      {value.map((v: any, idx: number) => {
+                                        if (origArr && origArr[idx] !== undefined && origArr[idx] !== v) {
+                                          return (
+                                            <li key={idx}>
+                                              <span className="text-decoration-line-through text-danger">{String(origArr[idx])}</span>
+                                              <span className="text-success ms-2">✓ {String(v)}</span>
+                                            </li>
+                                          );
+                                        } else {
+                                          return <li key={idx}>{v}</li>;
+                                        }
+                                      })}
                                     </ul>
                                   </div>
                                 );
                               }
-                              // Default: show each value on its own line
+                              // Default: show each value on its own line, with correction highlighting if needed
+                              const origArr = corrections && corrections.hasOwnProperty(field) && Array.isArray(corrections[field]) ? corrections[field] : null;
                               return (
                                 <div key={field} className="mb-2">
                                   <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
                                   <ul className="mb-0 ps-3">
-                                    {value.map((v: any, idx: number) => (
-                                      <li key={idx}>{v}</li>
-                                    ))}
+                                    {value.map((v: any, idx: number) => {
+                                      if (origArr && origArr[idx] !== undefined && origArr[idx] !== v) {
+                                        return (
+                                          <li key={idx}>
+                                            <span className="text-decoration-line-through text-danger">{String(origArr[idx])}</span>
+                                            <span className="text-success ms-2">✓ {String(v)}</span>
+                                          </li>
+                                        );
+                                      } else {
+                                        return <li key={idx}>{v}</li>;
+                                      }
+                                    })}
                                   </ul>
                                 </div>
                               );
                             }
                             // Fallback for non-array fields
                             const currVal = value;
+                            const origVal = corrections && corrections.hasOwnProperty(field) ? corrections[field] : undefined;
+                            if (origVal !== undefined && currVal !== undefined && origVal !== currVal) {
+                              return (
+                                <div key={field} className="mb-2">
+                                  <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                  <div>
+                                    <span className="text-decoration-line-through text-danger">{String(origVal)}</span>
+                                    <span className="text-success ms-2">✓ {String(currVal)}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
                             return (
                               <div key={field} className="mb-2">
                                 <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
