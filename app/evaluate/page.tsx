@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FaCheck, FaTimes, FaSave, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import fs from 'fs';
+import { Modal, Button } from 'react-bootstrap';
 
 interface Entity {
   [key: string]: any; // Allow dynamic fields
@@ -116,6 +117,8 @@ export default function EvaluatePage() {
   const [evaluationStatus, setEvaluationStatus] = useState<{ [key: string]: 'pending' | 'approved' | 'corrected' }>({});
   const [originalValues, setOriginalValues] = useState<{ [entityId: string]: { [field: string]: any } }>({});
   const [hasEvalFile, setHasEvalFile] = useState(false);
+  const [modalEntityId, setModalEntityId] = useState<string | null>(null);
+  const [modalEntityIndex, setModalEntityIndex] = useState<number>(0);
 
   const getEvalPath = (filePath: string) => filePath.endsWith('_eval.json') ? filePath : filePath.replace('.json', '_eval.json');
 
@@ -225,22 +228,69 @@ export default function EvaluatePage() {
   const handleApprove = (entityId: string) => {
     const entity = evaluation[entityId]?.[0];
     if (entity) {
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+      let corrections: Record<string, any> = {};
+      if (Array.isArray(entity.sentence)) {
+        // Robustly handle entity.entity as array or single value
+        const entityEntities = Array.isArray(entity.entity)
+          ? entity.entity
+          : entity.entity !== undefined
+            ? Array(entity.sentence.length).fill(entity.entity)
+            : [];
+        const newStarts: number[] = [];
+        const newEnds: number[] = [];
+        const oldStarts = Array.isArray(entity.start) ? entity.start : Array(entity.sentence.length).fill("");
+        const oldEnds = Array.isArray(entity.end) ? entity.end : Array(entity.sentence.length).fill("");
+        let changed = false;
+        entity.sentence.forEach((sentence: string, idx: number) => {
+          const entityText = entityEntities[idx];
+          if (typeof sentence === 'string' && typeof entityText === 'string') {
+            const lowerSentence = sentence.toLowerCase();
+            const lowerEntity = entityText.toLowerCase();
+            const foundIdx = lowerSentence.indexOf(lowerEntity);
+            if (foundIdx !== -1) {
+              newStarts[idx] = foundIdx;
+              newEnds[idx] = foundIdx + entityText.length;
+              if (oldStarts[idx] !== foundIdx || oldEnds[idx] !== foundIdx + entityText.length) {
+                changed = true;
+              }
+            } else {
+              newStarts[idx] = oldStarts[idx];
+              newEnds[idx] = oldEnds[idx];
+            }
+          } else {
+            newStarts[idx] = oldStarts[idx];
+            newEnds[idx] = oldEnds[idx];
+          }
+        });
+        if (changed) {
+          corrections.start = [...oldStarts];
+          corrections.end = [...oldEnds];
+        }
+        setEvaluation(prev => ({
+          ...prev,
+          [entityId]: prev[entityId].map((e, i) =>
+            i === 0 ? { ...e, approved: true, corrections, start: newStarts, end: newEnds } : e
+          ),
+        }));
+        setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
+        setEditMode(prev => ({ ...prev, [entityId]: false }));
+        return;
+      }
+      // Fallback: single sentence/entity
+      const sentenceVal = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
+      const entityTextVal = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
       let start = Array.isArray(entity.start) ? entity.start[0] : entity.start;
       let end = Array.isArray(entity.end) ? entity.end[0] : entity.end;
-      let corrections: Record<string, any> = {};
-      if (sentence && entityText) {
-        const lowerSentence = sentence.toLowerCase();
-        const lowerEntity = entityText.toLowerCase();
+      if (typeof sentenceVal === 'string' && typeof entityTextVal === 'string') {
+        const lowerSentence = (sentenceVal as string).toLowerCase();
+        const lowerEntity = (entityTextVal as string).toLowerCase();
         const idx = lowerSentence.indexOf(lowerEntity);
-        if (idx !== -1 && (start !== idx || end !== idx + entityText.length)) {
-          // Store the original start/end before updating
-          corrections = { start: entity.start, end: entity.end };
+        if (idx !== -1 && (start !== idx || end !== idx + (entityTextVal as string).length)) {
+          corrections = { start, end };
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: true, corrections, start: [idx], end: [idx + entityText.length] } : e
+              i === 0 ? { ...e, approved: true, corrections, start: [idx], end: [idx + (entityTextVal as string).length] } : e
             ),
           }));
           setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
@@ -258,19 +308,20 @@ export default function EvaluatePage() {
       setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
       setEditMode(prev => ({ ...prev, [entityId]: false }));
     }
+    setEvaluation(prev => ({ ...prev }));
   };
 
-  const handleStartCorrection = (entityId: string) => {
+  const handleStartCorrection = (entityId: string, idx: number = 0) => {
     // Store original values for this entity
-    const entity = evaluation[entityId]?.[0];
+    const entity = evaluation[entityId]?.[idx];
     if (entity) {
       setOriginalValues(prev => ({
         ...prev,
         [entityId]: { ...entity },
       }));
       // Auto-correct start/end to first case-insensitive match
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+      const sentence = Array.isArray(entity.sentence) ? entity.sentence[idx] : entity.sentence;
+      const entityText = Array.isArray(entity.entity) ? entity.entity[idx] : entity.entity;
       if (sentence && entityText) {
         const lowerSentence = sentence.toLowerCase();
         const lowerEntity = entityText.toLowerCase();
@@ -279,14 +330,14 @@ export default function EvaluatePage() {
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: false, start: [idx], end: [idx + entityText.length] } : e
+              i === idx ? { ...e, approved: false, start: [idx], end: [idx + entityText.length] } : e
             ),
           }));
         } else {
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: false } : e
+              i === idx ? { ...e, approved: false } : e
             ),
           }));
         }
@@ -294,13 +345,20 @@ export default function EvaluatePage() {
         setEvaluation(prev => ({
           ...prev,
           [entityId]: prev[entityId].map((e, i) =>
-            i === 0 ? { ...e, approved: false } : e
+            i === idx ? { ...e, approved: false } : e
           ),
         }));
       }
     }
     setEvaluationStatus(prev => ({ ...prev, [entityId]: 'corrected' }));
     setEditMode(prev => ({ ...prev, [entityId]: true }));
+    setModalEntityId(entityId);
+    setModalEntityIndex(idx);
+  };
+
+  const handleCloseModal = () => {
+    setModalEntityId(null);
+    setModalEntityIndex(0);
   };
 
   const handleSaveCorrection = (entityId: string) => {
@@ -311,40 +369,39 @@ export default function EvaluatePage() {
     const orig = originalValues[entityId] || {};
     let corrections: Record<string, any> = {};
 
-    // Find all corrected fields and store the old value in corrections
+    // Deep equality check for arrays/objects
+    const deepEqual = (a: any, b: any) => {
+      if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+          if (!deepEqual(a[i], b[i])) return false;
+        }
+        return true;
+      }
+      if (typeof a === 'object' && typeof b === 'object') {
+        return JSON.stringify(a) === JSON.stringify(b);
+      }
+      return a === b;
+    };
+
+    // Find all corrected fields and store the old value in corrections (deep equality)
     Object.keys(entity).forEach(field => {
-      if (field !== 'judge_score' && field !== 'approved' && entity[field] !== orig[field]) {
-        corrections[field] = orig[field]; // Store the old value
+      if (field !== 'approved') {
+        if (!deepEqual(entity[field], orig[field])) {
+          corrections[field] = orig[field];
+        }
       }
     });
 
-    // If entity text was corrected, auto-adjust start/end
-    if (corrections.entity && entity.sentence) {
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = entity.entity;
-      if (entityText) {
-        const lowerSentence = sentence.toLowerCase();
-        const lowerEntity = entityText.toLowerCase();
-        const idx = lowerSentence.indexOf(lowerEntity);
-        if (idx !== -1) {
-          corrections.start = orig.start;
-          corrections.end = orig.end;
-          setEvaluation(prev => ({
-            ...prev,
-            [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, start: [idx], end: [idx + entityText.length] } : e
-            ),
-          }));
-        }
-      }
-    }
-
+    // Immediately update the corrections field in the evaluation state for UI
     setEvaluation(prev => ({
       ...prev,
       [entityId]: prev[entityId].map((e, i) =>
         i === 0 ? { ...e, approved: false, corrections } : e
       ),
     }));
+    // Force re-render
+    setEvaluation(prev => ({ ...prev }));
   };
 
   const handleSave = async () => {
@@ -355,162 +412,121 @@ export default function EvaluatePage() {
 
     setSaving(true);
     try {
-      // Deep copy the original data
-      const mergedData = JSON.parse(JSON.stringify(data));
-
-      // Find the key in the original data that holds the entities
-      let entityKey = null;
-      if (mergedData && typeof mergedData === 'object') {
-        for (const [key, value] of Object.entries(mergedData)) {
-          if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
-            entityKey = key;
-            break;
-          }
-        }
-        if (!entityKey && mergedData.judged_structured_information) {
-          entityKey = 'judged_structured_information';
-        }
-      }
-
-      // Helper to get the evaluation entity for a given index/key
-      const getEvalEntity = (idxOrKey: string|number) => evaluation[idxOrKey]?.[0];
-      // Helper to get the original entity for a given index/key
-      const getOrigEntity = (entities: any, idxOrKey: string|number) => {
-        if (Array.isArray(entities)) return entities[Number(idxOrKey)];
-        if (typeof entities === 'object') return entities[idxOrKey]?.[0];
-        return undefined;
-      };
-
-      if (entityKey) {
-        const entitiesObj = mergedData[entityKey];
-        if (entitiesObj && typeof entitiesObj === 'object' && !Array.isArray(entitiesObj)) {
-          // Object of arrays (your format)
-          Object.entries(entitiesObj).forEach(([key, arr]) => {
-            if (Array.isArray(arr) && arr[0]) {
-              const origEntity = arr[0];
-              const evalEntity = getEvalEntity(key);
-              if (evalEntity) {
-                // Build corrections object with old values only (deep equality check)
-                const corrections: Record<string, any> = {};
-                Object.keys(evalEntity).forEach(field => {
-                  if (
-                    field !== 'approved' &&
-                    field !== 'corrections' &&
-                    JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
-                  ) {
-                    corrections[field] = origEntity[field];
-                  }
-                });
-                // Merge new values into entity
-                let mergedEntity = { ...origEntity };
-                Object.keys(evalEntity).forEach(field => {
-                  if (field !== 'approved' && field !== 'corrections') {
-                    mergedEntity[field] = evalEntity[field];
-                  }
-                });
-                // Set approved status and corrections
-                const correctionKeys = Object.keys(corrections);
-                const allowed = new Set(['start', 'end']);
-                const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => allowed.has(k));
-                if (evalEntity.approved === true && (correctionKeys.length === 0 || onlyStartEnd)) {
-                  mergedEntity = { ...mergedEntity, approved: true };
-                  if (onlyStartEnd) mergedEntity = { ...mergedEntity, corrections };
-                  else delete mergedEntity.corrections;
-                } else if (correctionKeys.length > 0) {
-                  mergedEntity = { ...mergedEntity, approved: false, corrections };
-                } else {
-                  delete mergedEntity.approved;
-                  delete mergedEntity.corrections;
-                }
-                arr[0] = mergedEntity;
+      const isEvalFile = filePath.endsWith('_eval.json');
+      let mergedData: any;
+      if (isEvalFile) {
+        // For _eval.json, always merge and write the current evaluation state, ensuring corrections are preserved
+        mergedData = { judged_structured_information: {} };
+        Object.entries(evaluation).forEach(([entityId, entities]) => {
+          const evalEntity = entities[0];
+          let corrections: Record<string, any> = {};
+          const prevEntity = entities[0]._prev || {};
+          const deepEqual = (a: any, b: any) => {
+            if (Array.isArray(a) && Array.isArray(b)) {
+              if (a.length !== b.length) return false;
+              for (let i = 0; i < a.length; i++) {
+                if (!deepEqual(a[i], b[i])) return false;
+              }
+              return true;
+            }
+            if (typeof a === 'object' && typeof b === 'object') {
+              return JSON.stringify(a) === JSON.stringify(b);
+            }
+            return a === b;
+          };
+          Object.keys(evalEntity).forEach(field => {
+            if (field !== 'approved' && field !== 'corrections') {
+              if (evalEntity.corrections && evalEntity.corrections[field] !== undefined) {
+                corrections[field] = evalEntity.corrections[field];
+              } else if (prevEntity[field] !== undefined && !deepEqual(evalEntity[field], prevEntity[field])) {
+                corrections[field] = prevEntity[field];
               }
             }
           });
-          mergedData[entityKey] = entitiesObj;
-        } else if (Array.isArray(entitiesObj)) {
-          // Flat array (fallback for other formats)
-          entitiesObj.forEach((entity: any, idx: number) => {
-            const evalEntity = getEvalEntity(idx + 1);
-            if (evalEntity) {
-              const origEntity = entity;
-              const corrections: Record<string, any> = {};
-              Object.keys(evalEntity).forEach(field => {
-                if (
-                  field !== 'approved' &&
-                  field !== 'corrections' &&
-                  JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
-                ) {
-                  corrections[field] = origEntity[field];
-                }
-              });
-              let mergedEntity = { ...origEntity };
-              Object.keys(evalEntity).forEach(field => {
-                if (field !== 'approved' && field !== 'corrections') {
-                  mergedEntity[field] = evalEntity[field];
-                }
-              });
-              const correctionKeysArr = Object.keys(corrections);
-              const allowedArr = new Set(['start', 'end']);
-              const onlyStartEndArr = correctionKeysArr.length > 0 && correctionKeysArr.every(k => allowedArr.has(k));
-              if (evalEntity.approved === true && (correctionKeysArr.length === 0 || onlyStartEndArr)) {
-                mergedEntity = { ...mergedEntity, approved: true };
-                if (onlyStartEndArr) mergedEntity = { ...mergedEntity, corrections };
-                else delete mergedEntity.corrections;
-              } else if (correctionKeysArr.length > 0) {
-                mergedEntity = { ...mergedEntity, approved: false, corrections };
-              } else {
-                delete mergedEntity.approved;
-                delete mergedEntity.corrections;
-              }
-              entitiesObj[idx] = mergedEntity;
-            }
-          });
-          mergedData[entityKey] = entitiesObj;
-        } else {
-          setError('The detected entity key is not compatible. Please check your file format.');
-          setSaving(false);
-          return;
-        }
-      } else if (Array.isArray(mergedData)) {
-        // If the root is an array, update each entity with evaluation info
-        mergedData.forEach((entity: any, idx: number) => {
-          const evalEntity = getEvalEntity(idx + 1);
-          if (evalEntity) {
-            const origEntity = entity;
-            const corrections: Record<string, any> = {};
-            Object.keys(evalEntity).forEach(field => {
-              if (
-                field !== 'approved' &&
-                field !== 'corrections' &&
-                JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
-              ) {
-                corrections[field] = origEntity[field];
-              }
-            });
-            let mergedEntity = { ...origEntity };
-            Object.keys(evalEntity).forEach(field => {
-              if (field !== 'approved' && field !== 'corrections') {
-                mergedEntity[field] = evalEntity[field];
-              }
-            });
-            const correctionKeys = Object.keys(corrections);
-            const allowed = new Set(['start', 'end']);
-            const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => allowed.has(k));
-            if (evalEntity.approved === true && (correctionKeys.length === 0 || onlyStartEnd)) {
-              mergedEntity = { ...mergedEntity, approved: true };
-              if (onlyStartEnd) mergedEntity = { ...mergedEntity, corrections };
-              else delete mergedEntity.corrections;
-            } else if (correctionKeys.length > 0) {
-              mergedEntity = { ...mergedEntity, approved: false, corrections };
-            } else {
-              delete mergedEntity.approved;
-              delete mergedEntity.corrections;
-            }
-            mergedData[idx] = mergedEntity;
+          const merged = { ...evalEntity };
+          if (Object.keys(corrections).length > 0) {
+            merged.corrections = corrections;
+          } else {
+            delete merged.corrections;
           }
+          mergedData.judged_structured_information[entityId] = [merged];
         });
       } else {
-        mergedData.evaluation = evaluation;
+        // Restore previous original file save logic
+        mergedData = JSON.parse(JSON.stringify(data));
+        // Find the key in the original data that holds the entities
+        let entityKey: string | null = null;
+        if (mergedData && typeof mergedData === 'object') {
+          for (const [key, value] of Object.entries(mergedData)) {
+            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
+              entityKey = key;
+              break;
+            }
+          }
+          if (!entityKey && mergedData.judged_structured_information) {
+            entityKey = 'judged_structured_information';
+          }
+        }
+        // Helper to get the evaluation entity for a given index/key
+        const getEvalEntity = (idxOrKey: string|number) => evaluation[idxOrKey]?.[0];
+        // Deep equality check for arrays/objects
+        const deepEqual = (a: any, b: any) => {
+          if (Array.isArray(a) && Array.isArray(b)) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+              if (!deepEqual(a[i], b[i])) return false;
+            }
+            return true;
+          }
+          if (typeof a === 'object' && typeof b === 'object') {
+            return JSON.stringify(a) === JSON.stringify(b);
+          }
+          return a === b;
+        };
+        if (entityKey) {
+          const entitiesObj = mergedData[entityKey];
+          if (entitiesObj && typeof entitiesObj === 'object' && !Array.isArray(entitiesObj)) {
+            Object.entries(entitiesObj).forEach(([key, arr]) => {
+              if (Array.isArray(arr) && arr[0]) {
+                const origEntity = arr[0];
+                const evalEntity = getEvalEntity(key);
+                if (evalEntity) {
+                  const corrections: Record<string, any> = {};
+                  Object.keys(evalEntity).forEach(field => {
+                    if (
+                      field !== 'approved' &&
+                      field !== 'corrections' &&
+                      !deepEqual(origEntity[field], evalEntity[field])
+                    ) {
+                      corrections[field] = origEntity[field];
+                    }
+                  });
+                  let mergedEntity = { ...origEntity };
+                  Object.keys(evalEntity).forEach(field => {
+                    if (field !== 'approved' && field !== 'corrections') {
+                      mergedEntity[field] = evalEntity[field];
+                    }
+                  });
+                  const correctionKeys = Object.keys(corrections);
+                  const allowed = new Set(['start', 'end']);
+                  const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => allowed.has(k));
+                  if (evalEntity.approved === true && (correctionKeys.length === 0 || onlyStartEnd)) {
+                    mergedEntity = { ...mergedEntity, approved: true };
+                    if (onlyStartEnd) mergedEntity = { ...mergedEntity, corrections };
+                    else delete mergedEntity.corrections;
+                  } else if (correctionKeys.length > 0) {
+                    mergedEntity = { ...mergedEntity, approved: false, corrections };
+                  } else {
+                    delete mergedEntity.approved;
+                    delete mergedEntity.corrections;
+                  }
+                  arr[0] = mergedEntity;
+                }
+              }
+            });
+            mergedData[entityKey] = entitiesObj;
+          }
+        }
       }
 
       const evalPath = getEvalPath(filePath!);
@@ -530,12 +546,6 @@ export default function EvaluatePage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  // Add a handler for form submit (Enter key)
-  const handleCorrectionFormSubmit = (e: React.FormEvent, entityId: string) => {
-    e.preventDefault();
-    handleSaveCorrection(entityId);
   };
 
   // Helper to check if an entity is corrected (any field changed from original)
@@ -630,166 +640,282 @@ export default function EvaluatePage() {
             </div>
           )}
           <div className="table-responsive w-100">
-            <table className="table table-bordered w-100">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  {[...allFields].map(field => (
-                    <th key={field}>{field}</th>
-                  ))}
-                  {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && <th>Status</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(evaluation).flatMap(([entityId, entities], idx) => {
-                  if (!Array.isArray(entities)) return null;
-                  return entities.map((entity, index) => {
-                    let status: 'pending' | 'approved' | 'corrected' = 'pending';
-                    if (entity.approved === true) status = 'approved';
-                    else if (entity.approved === false) status = 'corrected';
-                    const corrections = entity.corrections || {};
-                    const correctionKeys = Object.keys(corrections);
-                    const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => k === 'start' || k === 'end');
-                    const isCorrected = status === 'corrected' && Object.keys(corrections).length > 0;
-                    const isApprovedWithStartEnd = status === 'approved' && onlyStartEnd;
-                    const isEdit = editMode[entityId] && status === 'corrected';
+            <div className="row g-4">
+              {Object.entries(evaluation).flatMap(([entityId, entities], idx) => {
+                if (!Array.isArray(entities)) return null;
+                return entities.map((entity, index) => {
+                  let status: 'pending' | 'approved' | 'corrected' = 'pending';
+                  if (entity.approved === true) status = 'approved';
+                  else if (entity.approved === false) status = 'corrected';
+                  const corrections = entity.corrections || {};
+                  const correctionKeys = Object.keys(corrections);
+                  const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => k === 'start' || k === 'end');
+                  const isCorrected = status === 'corrected' && Object.keys(corrections).length > 0;
+                  const isApprovedWithStartEnd = status === 'approved' && onlyStartEnd;
+                  const isEdit = editMode[entityId] && status === 'corrected';
 
-                    // Get the original entity robustly by key or index
-                    let orig: any = {};
-                    if (Array.isArray(data)) {
-                      orig = data[Number(entityId) - 1] || data[idx];
-                    } else if (data && typeof data === 'object') {
-                      if (data[entityId] && Array.isArray(data[entityId]) && data[entityId][0]) {
-                        orig = data[entityId][0];
-                      } else {
-                        const found = findFirstEntityArray(data);
-                        if (found && found.value && found.value[Number(entityId) - 1]) {
-                          orig = found.value[Number(entityId) - 1];
-                        }
+                  // Get the original entity robustly by key or index
+                  let orig: any = {};
+                  if (Array.isArray(data)) {
+                    orig = data[Number(entityId) - 1] || data[idx];
+                  } else if (data && typeof data === 'object') {
+                    if (data[entityId] && Array.isArray(data[entityId]) && data[entityId][0]) {
+                      orig = data[entityId][0];
+                    } else {
+                      const found = findFirstEntityArray(data);
+                      if (found && found.value && found.value[Number(entityId) - 1]) {
+                        orig = found.value[Number(entityId) - 1];
                       }
                     }
-                    if (isEdit && originalValues[entityId]) {
-                      orig = originalValues[entityId];
-                    }
-                    // Prepare sentence highlight values
-                    const origSentence = (Array.isArray(orig.sentence) ? orig.sentence[0] : (entity.sentence ? (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) : '')) || '';
-                    const origStart = typeof (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : undefined)) === 'number' ? (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0)) : 0;
-                    const origEnd = typeof (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : undefined)) === 'number' ? (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0)) : 0;
-                    const origEntityText = Array.isArray(orig.entity) ? orig.entity[0] : (entity.entity ? (Array.isArray(entity.entity) ? entity.entity[0] : entity.entity) : undefined);
-                    const evalSentence = (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) || '';
-                    const evalStart = typeof (Array.isArray(entity.start) ? entity.start[0] : entity.start) === 'number' ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0;
-                    const evalEnd = typeof (Array.isArray(entity.end) ? entity.end[0] : entity.end) === 'number' ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0;
-                    const evalEntityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
-                    if (isEdit && !(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false))) {
-                      // Render vertical correction form
-                      return (
-                        <tr key={entityId + '-' + index} id={`entity-row-${entityId}`}>
-                          <td colSpan={allFields.size + 2}>
-                            <form onSubmit={e => handleCorrectionFormSubmit(e, entityId)}>
-                              <div className="card p-3 mb-3 bg-light border-warning">
-                                <h5 className="mb-3">Provide Corrections</h5>
-                                {Array.from(allFields).map(field => (
-                                  <div className="mb-2 row align-items-center" key={field}>
-                                    <label className="col-sm-2 col-form-label fw-bold text-capitalize" htmlFor={`correction-${entityId}-${field}`}>{field.replace(/_/g, ' ')}:</label>
-                                    <div className="col-sm-10">
-                                      <input
-                                        id={`correction-${entityId}-${field}`}
-                                        type="text"
-                                        className="form-control"
-                                        value={Array.isArray(entity[field]) ? entity[field][0] : entity[field] || ''}
-                                        onChange={e => handleFieldChange(entityId, index, field, e.target.value)}
-                                        readOnly={field === 'sentence'}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                                <div className="d-flex justify-content-end mt-3">
-                                  <button type="submit" className="btn btn-warning">
-                                    Save Correction
+                  }
+                  if (isEdit && originalValues[entityId]) {
+                    orig = originalValues[entityId];
+                  }
+
+                  // Prepare sentence highlight values
+                  const origSentence = (Array.isArray(orig.sentence) ? orig.sentence[0] : (entity.sentence ? (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) : '')) || '';
+                  const origStart = typeof (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : undefined)) === 'number' ? (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0)) : 0;
+                  const origEnd = typeof (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : undefined)) === 'number' ? (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0)) : 0;
+                  const origEntityText = Array.isArray(orig.entity) ? orig.entity[0] : (entity.entity ? (Array.isArray(entity.entity) ? entity.entity[0] : entity.entity) : undefined);
+                  const evalSentence = (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) || '';
+                  const evalStart = typeof (Array.isArray(entity.start) ? entity.start[0] : entity.start) === 'number' ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0;
+                  const evalEnd = typeof (Array.isArray(entity.end) ? entity.end[0] : entity.end) === 'number' ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0;
+                  const evalEntityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+
+                  return (
+                    <div key={entityId + '-' + index} className="col-md-6 col-lg-4" id={`entity-row-${entityId}`}>
+                      <div className={`card h-100 ${isCorrected || isApprovedWithStartEnd ? 'border-warning' : ''}`}>
+                        <div className="card-header d-flex justify-content-between align-items-center">
+                          <h5 className="mb-0">Entity #{idx + 1}</h5>
+                          {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && (
+                            <div>
+                              {status === 'pending' && !allEvaluated ? (
+                                <div className="btn-group">
+                                  <button
+                                    className="btn btn-outline-success btn-sm"
+                                    onClick={() => handleApprove(entityId)}
+                                    title="Approve"
+                                  >
+                                    <FaThumbsUp />
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-danger btn-sm"
+                                    onClick={() => handleStartCorrection(entityId, index)}
+                                    title="Needs Correction"
+                                  >
+                                    <FaThumbsDown />
                                   </button>
                                 </div>
-                              </div>
-                            </form>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return (
-                      <tr key={entityId + '-' + index} id={`entity-row-${entityId}`} style={isCorrected || isApprovedWithStartEnd ? { background: '#fff3cd' } : {}}>
-                        <td>{idx + 1}</td>
-                        {[...allFields].map((field: string) => {
-                          // Only show start/end correction/highlighting if those fields exist
-                          if ((field === 'start' || field === 'end') && entity[field] === undefined) {
-                            return <td key={field}></td>;
-                          }
-                          if (field === 'sentence' && (entity['start'] !== undefined && entity['end'] !== undefined)) {
-                            // Show highlight if start/end exist
+                              ) : status === 'approved' ? (
+                                <span className="badge bg-success">Approved</span>
+                              ) : status === 'corrected' ? (
+                                <span className="badge bg-warning text-dark">Corrected</span>
+                              ) : (
+                                <span className="badge bg-secondary">Pending</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="card-body">
+                          {[...allFields].map((field: string) => {
+                            // Only show start/end correction/highlighting if those fields exist
+                            if ((field === 'start' || field === 'end') && entity[field] === undefined) {
+                              return null;
+                            }
+                            // Special handling for sentence/start/end triplets
+                            if (field === 'sentence' && (entity['start'] !== undefined && entity['end'] !== undefined)) {
+                              const sentences = Array.isArray(entity['sentence']) ? entity['sentence'] : [entity['sentence']];
+                              const starts = Array.isArray(entity['start']) ? entity['start'] : [entity['start']];
+                              const ends = Array.isArray(entity['end']) ? entity['end'] : [entity['end']];
+                              const entityTexts = Array.isArray(entity['entity']) ? entity['entity'] : [entity['entity']];
+                              return (
+                                <div key={field} className="mb-3">
+                                  <h6 className="text-muted mb-2">{field.replace(/_/g, ' ')}:</h6>
+                                  <div className="p-2 bg-light rounded">
+                                    {sentences.map((sentence, idx) => (
+                                      <div key={idx} className="mb-2">
+                                        {highlightEntity(
+                                          sentence || '',
+                                          Number(starts[idx]) || 0,
+                                          Number(ends[idx]) || 0,
+                                          entityTexts[idx]
+                                        )}
+                                        <div className="text-muted small mt-1">
+                                          Start: {starts[idx]}, End: {ends[idx]}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            // For other array fields, show all values
+                            const value = entity[field];
+                            if (Array.isArray(value) && value.length > 0) {
+                              // Special formatting for remarks, paper_title, doi, paper_location, judge_score, etc.
+                              if (field === 'remarks' || field === 'paper_title' || field === 'doi' || field === 'paper_location' || field === 'judge_score') {
+                                const origArr = corrections && corrections.hasOwnProperty(field) && Array.isArray(corrections[field]) ? corrections[field] : null;
+                                return (
+                                  <div key={field} className="mb-2">
+                                    <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                    <ul className="mb-0 ps-3">
+                                      {value.map((v: any, idx: number) => {
+                                        if (origArr && origArr[idx] !== undefined && origArr[idx] !== v) {
+                                          return (
+                                            <li key={idx}>
+                                              <span className="text-decoration-line-through text-danger">{String(origArr[idx])}</span>
+                                              <span className="text-success ms-2">✓ {String(v)}</span>
+                                            </li>
+                                          );
+                                        } else {
+                                          return <li key={idx}>{v}</li>;
+                                        }
+                                      })}
+                                    </ul>
+                                  </div>
+                                );
+                              }
+                              // Default: show each value on its own line, with correction highlighting if needed
+                              const origArr = corrections && corrections.hasOwnProperty(field) && Array.isArray(corrections[field]) ? corrections[field] : null;
+                              return (
+                                <div key={field} className="mb-2">
+                                  <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                  <ul className="mb-0 ps-3">
+                                    {value.map((v: any, idx: number) => {
+                                      if (origArr && origArr[idx] !== undefined && origArr[idx] !== v) {
+                                        return (
+                                          <li key={idx}>
+                                            <span className="text-decoration-line-through text-danger">{String(origArr[idx])}</span>
+                                            <span className="text-success ms-2">✓ {String(v)}</span>
+                                          </li>
+                                        );
+                                      } else {
+                                        return <li key={idx}>{v}</li>;
+                                      }
+                                    })}
+                                  </ul>
+                                </div>
+                              );
+                            }
+                            // Fallback for non-array fields
+                            const currVal = value;
+                            const origVal = corrections && corrections.hasOwnProperty(field) ? corrections[field] : undefined;
+                            if (origVal !== undefined && currVal !== undefined && origVal !== currVal) {
+                              return (
+                                <div key={field} className="mb-2">
+                                  <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                  <div>
+                                    <span className="text-decoration-line-through text-danger">{String(origVal)}</span>
+                                    <span className="text-success ms-2">✓ {String(currVal)}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
                             return (
-                              <td key={field}>
-                                {highlightEntity(
-                                  Array.isArray(entity[field]) ? entity[field][0] : entity[field] || '',
-                                  Number(Array.isArray(entity['start']) ? entity['start'][0] : entity['start']) || 0,
-                                  Number(Array.isArray(entity['end']) ? entity['end'][0] : entity['end']) || 0,
-                                  Array.isArray(entity['entity']) ? entity['entity'][0] : entity['entity']
-                                )}
-                              </td>
-                            );
-                          }
-                          // Correction display: only if corrected and field in corrections
-                          const origVal = corrections && corrections.hasOwnProperty(field) ? corrections[field] : (Array.isArray(orig[field]) ? orig[field][0] : orig[field]);
-                          const currVal = Array.isArray(entity[field]) ? entity[field][0] : entity[field];
-                          const showCorrection = (status === 'corrected' || isApprovedWithStartEnd) && corrections && corrections.hasOwnProperty(field);
-                          if (showCorrection && origVal !== undefined && currVal !== undefined && origVal !== currVal) {
-                            return (
-                              <td key={field}>
-                                <span style={{ textDecoration: 'line-through', color: 'red' }}>{String(origVal)}</span>
-                                <span style={{ color: 'green', marginLeft: 4 }}>✓ {String(currVal)}</span>
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key={field}>
-                              {displayValue(currVal, false, origVal)}
-                            </td>
-                          );
-                        })}
-                        {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && (
-                          <td style={{ minWidth: 160 }}>
-                            {status === 'pending' && !allEvaluated ? (
-                              <div className="d-flex flex-column flex-md-row gap-2">
-                                <button
-                                  className="btn btn-outline-success btn-sm w-100"
-                                  onClick={() => handleApprove(entityId)}
-                                  title="Approve"
-                                >
-                                  <FaThumbsUp /> Approve
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm w-100"
-                                  onClick={() => handleStartCorrection(entityId)}
-                                  title="Needs Correction"
-                                >
-                                  <FaThumbsDown /> Needs Correction
-                                </button>
+                              <div key={field} className="mb-2">
+                                <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                <div>{displayValue(currVal, false, undefined)}</div>
                               </div>
-                            ) : status === 'approved' ? (
-                              <span className="badge bg-success w-100">Approved</span>
-                            ) : status === 'corrected' ? (
-                              <span className="badge bg-warning text-dark w-100">Corrected</span>
-                            ) : (
-                              <span className="badge bg-secondary w-100">Pending</span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  });
-                })}
-              </tbody>
-            </table>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })}
+            </div>
           </div>
         </div>
       </div>
+      {modalEntityId !== null && (
+        <Modal show onHide={handleCloseModal} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Provide Corrections</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <form onSubmit={e => { e.preventDefault(); handleSaveCorrection(modalEntityId!); handleCloseModal(); }}>
+              {Array.from(allFields).map(field => {
+                const entity = evaluation[modalEntityId!]?.[modalEntityIndex] || {};
+                const value = entity[field];
+                const isArray = Array.isArray(value);
+                // Helper to update array field
+                const handleArrayChange = (idx: number, newVal: string) => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: value.map((v: any, j: number) => j === idx ? newVal : v) } : e
+                    ),
+                  }));
+                  setCorrections(prev => ({
+                    ...prev,
+                    [modalEntityId!]: { ...(prev[modalEntityId!] || {}), [field]: true },
+                  }));
+                };
+                // Helper to add/remove array element
+                const handleAdd = () => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: [...(value || []), ''] } : e
+                    ),
+                  }));
+                };
+                const handleRemove = (idx: number) => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: value.filter((_: any, j: number) => j !== idx) } : e
+                    ),
+                  }));
+                };
+                if (isArray) {
+                  return (
+                    <div className="mb-2" key={field}>
+                      <label className="fw-bold text-capitalize">{field.replace(/_/g, ' ')}:</label>
+                      {value.map((v: any, idx: number) => (
+                        <div className="input-group mb-1" key={idx}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={v || ''}
+                            onChange={e => handleArrayChange(idx, e.target.value)}
+                            readOnly={field === 'sentence'}
+                          />
+                          <button type="button" className="btn btn-outline-danger" onClick={() => handleRemove(idx)} title="Remove">
+                            &minus;
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-outline-primary btn-sm" onClick={handleAdd} title={`Add ${field}`}>+ Add</button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="mb-2 row align-items-center" key={field}>
+                      <label className="col-sm-3 col-form-label fw-bold text-capitalize" htmlFor={`correction-modal-${modalEntityId}-${field}`}>{field.replace(/_/g, ' ')}:</label>
+                      <div className="col-sm-9">
+                        <input
+                          id={`correction-modal-${modalEntityId}-${field}`}
+                          type="text"
+                          className="form-control"
+                          value={value || ''}
+                          onChange={e => handleFieldChange(modalEntityId!, modalEntityIndex, field, e.target.value)}
+                          readOnly={field === 'sentence'}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+              <div className="d-flex justify-content-end mt-3">
+                <Button variant="secondary" onClick={handleCloseModal} className="me-2">Cancel</Button>
+                <Button type="submit" variant="warning">Save Correction</Button>
+              </div>
+            </form>
+          </Modal.Body>
+        </Modal>
+      )}
     </div>
   );
 } 
