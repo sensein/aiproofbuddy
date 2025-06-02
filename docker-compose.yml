@@ -1,13 +1,15 @@
 version: '3.8'
+
 services:
   app:
     build: .
-    image: scientific-evaluation-ui:dev
+    image: scientific-evaluation-ui:latest
     ports:
       - "3007:3007"
-    volumes:
-      - ./uploads:/app/uploads
-      - .:/app  # Optional: live code changes inside container
-      - /app/node_modules  # protect container's node_modules
-    environment:
-      - NODE_ENV=development
+
+    # Optional: Set restart policy for production
+    restart: unless-stopped
+
+# Optional: Define named volume for persistent uploads (instead of host mount)
+volumes:
+  uploads_data:
