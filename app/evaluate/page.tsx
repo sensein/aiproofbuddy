@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FaCheck, FaTimes, FaSave, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import fs from 'fs';
+import { Modal, Button } from 'react-bootstrap';
 
 interface Entity {
   [key: string]: any; // Allow dynamic fields
@@ -116,6 +117,8 @@ export default function EvaluatePage() {
   const [evaluationStatus, setEvaluationStatus] = useState<{ [key: string]: 'pending' | 'approved' | 'corrected' }>({});
   const [originalValues, setOriginalValues] = useState<{ [entityId: string]: { [field: string]: any } }>({});
   const [hasEvalFile, setHasEvalFile] = useState(false);
+  const [modalEntityId, setModalEntityId] = useState<string | null>(null);
+  const [modalEntityIndex, setModalEntityIndex] = useState<number>(0);
 
   const getEvalPath = (filePath: string) => filePath.endsWith('_eval.json') ? filePath : filePath.replace('.json', '_eval.json');
 
@@ -260,17 +263,17 @@ export default function EvaluatePage() {
     }
   };
 
-  const handleStartCorrection = (entityId: string) => {
+  const handleStartCorrection = (entityId: string, idx: number = 0) => {
     // Store original values for this entity
-    const entity = evaluation[entityId]?.[0];
+    const entity = evaluation[entityId]?.[idx];
     if (entity) {
       setOriginalValues(prev => ({
         ...prev,
         [entityId]: { ...entity },
       }));
       // Auto-correct start/end to first case-insensitive match
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+      const sentence = Array.isArray(entity.sentence) ? entity.sentence[idx] : entity.sentence;
+      const entityText = Array.isArray(entity.entity) ? entity.entity[idx] : entity.entity;
       if (sentence && entityText) {
         const lowerSentence = sentence.toLowerCase();
         const lowerEntity = entityText.toLowerCase();
@@ -279,14 +282,14 @@ export default function EvaluatePage() {
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: false, start: [idx], end: [idx + entityText.length] } : e
+              i === idx ? { ...e, approved: false, start: [idx], end: [idx + entityText.length] } : e
             ),
           }));
         } else {
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: false } : e
+              i === idx ? { ...e, approved: false } : e
             ),
           }));
         }
@@ -294,13 +297,20 @@ export default function EvaluatePage() {
         setEvaluation(prev => ({
           ...prev,
           [entityId]: prev[entityId].map((e, i) =>
-            i === 0 ? { ...e, approved: false } : e
+            i === idx ? { ...e, approved: false } : e
           ),
         }));
       }
     }
     setEvaluationStatus(prev => ({ ...prev, [entityId]: 'corrected' }));
     setEditMode(prev => ({ ...prev, [entityId]: true }));
+    setModalEntityId(entityId);
+    setModalEntityIndex(idx);
+  };
+
+  const handleCloseModal = () => {
+    setModalEntityId(null);
+    setModalEntityIndex(0);
   };
 
   const handleSaveCorrection = (entityId: string) => {
@@ -532,12 +542,6 @@ export default function EvaluatePage() {
     }
   };
 
-  // Add a handler for form submit (Enter key)
-  const handleCorrectionFormSubmit = (e: React.FormEvent, entityId: string) => {
-    e.preventDefault();
-    handleSaveCorrection(entityId);
-  };
-
   // Helper to check if an entity is corrected (any field changed from original)
   function isEntityCorrected(entityId: string, entity: Entity): boolean {
     const orig = originalValues[entityId] || {};
@@ -630,166 +634,259 @@ export default function EvaluatePage() {
             </div>
           )}
           <div className="table-responsive w-100">
-            <table className="table table-bordered w-100">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  {[...allFields].map(field => (
-                    <th key={field}>{field}</th>
-                  ))}
-                  {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && <th>Status</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(evaluation).flatMap(([entityId, entities], idx) => {
-                  if (!Array.isArray(entities)) return null;
-                  return entities.map((entity, index) => {
-                    let status: 'pending' | 'approved' | 'corrected' = 'pending';
-                    if (entity.approved === true) status = 'approved';
-                    else if (entity.approved === false) status = 'corrected';
-                    const corrections = entity.corrections || {};
-                    const correctionKeys = Object.keys(corrections);
-                    const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => k === 'start' || k === 'end');
-                    const isCorrected = status === 'corrected' && Object.keys(corrections).length > 0;
-                    const isApprovedWithStartEnd = status === 'approved' && onlyStartEnd;
-                    const isEdit = editMode[entityId] && status === 'corrected';
+            <div className="row g-4">
+              {Object.entries(evaluation).flatMap(([entityId, entities], idx) => {
+                if (!Array.isArray(entities)) return null;
+                return entities.map((entity, index) => {
+                  let status: 'pending' | 'approved' | 'corrected' = 'pending';
+                  if (entity.approved === true) status = 'approved';
+                  else if (entity.approved === false) status = 'corrected';
+                  const corrections = entity.corrections || {};
+                  const correctionKeys = Object.keys(corrections);
+                  const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => k === 'start' || k === 'end');
+                  const isCorrected = status === 'corrected' && Object.keys(corrections).length > 0;
+                  const isApprovedWithStartEnd = status === 'approved' && onlyStartEnd;
+                  const isEdit = editMode[entityId] && status === 'corrected';
 
-                    // Get the original entity robustly by key or index
-                    let orig: any = {};
-                    if (Array.isArray(data)) {
-                      orig = data[Number(entityId) - 1] || data[idx];
-                    } else if (data && typeof data === 'object') {
-                      if (data[entityId] && Array.isArray(data[entityId]) && data[entityId][0]) {
-                        orig = data[entityId][0];
-                      } else {
-                        const found = findFirstEntityArray(data);
-                        if (found && found.value && found.value[Number(entityId) - 1]) {
-                          orig = found.value[Number(entityId) - 1];
-                        }
+                  // Get the original entity robustly by key or index
+                  let orig: any = {};
+                  if (Array.isArray(data)) {
+                    orig = data[Number(entityId) - 1] || data[idx];
+                  } else if (data && typeof data === 'object') {
+                    if (data[entityId] && Array.isArray(data[entityId]) && data[entityId][0]) {
+                      orig = data[entityId][0];
+                    } else {
+                      const found = findFirstEntityArray(data);
+                      if (found && found.value && found.value[Number(entityId) - 1]) {
+                        orig = found.value[Number(entityId) - 1];
                       }
                     }
-                    if (isEdit && originalValues[entityId]) {
-                      orig = originalValues[entityId];
-                    }
-                    // Prepare sentence highlight values
-                    const origSentence = (Array.isArray(orig.sentence) ? orig.sentence[0] : (entity.sentence ? (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) : '')) || '';
-                    const origStart = typeof (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : undefined)) === 'number' ? (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0)) : 0;
-                    const origEnd = typeof (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : undefined)) === 'number' ? (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0)) : 0;
-                    const origEntityText = Array.isArray(orig.entity) ? orig.entity[0] : (entity.entity ? (Array.isArray(entity.entity) ? entity.entity[0] : entity.entity) : undefined);
-                    const evalSentence = (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) || '';
-                    const evalStart = typeof (Array.isArray(entity.start) ? entity.start[0] : entity.start) === 'number' ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0;
-                    const evalEnd = typeof (Array.isArray(entity.end) ? entity.end[0] : entity.end) === 'number' ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0;
-                    const evalEntityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
-                    if (isEdit && !(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false))) {
-                      // Render vertical correction form
-                      return (
-                        <tr key={entityId + '-' + index} id={`entity-row-${entityId}`}>
-                          <td colSpan={allFields.size + 2}>
-                            <form onSubmit={e => handleCorrectionFormSubmit(e, entityId)}>
-                              <div className="card p-3 mb-3 bg-light border-warning">
-                                <h5 className="mb-3">Provide Corrections</h5>
-                                {Array.from(allFields).map(field => (
-                                  <div className="mb-2 row align-items-center" key={field}>
-                                    <label className="col-sm-2 col-form-label fw-bold text-capitalize" htmlFor={`correction-${entityId}-${field}`}>{field.replace(/_/g, ' ')}:</label>
-                                    <div className="col-sm-10">
-                                      <input
-                                        id={`correction-${entityId}-${field}`}
-                                        type="text"
-                                        className="form-control"
-                                        value={Array.isArray(entity[field]) ? entity[field][0] : entity[field] || ''}
-                                        onChange={e => handleFieldChange(entityId, index, field, e.target.value)}
-                                        readOnly={field === 'sentence'}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                                <div className="d-flex justify-content-end mt-3">
-                                  <button type="submit" className="btn btn-warning">
-                                    Save Correction
+                  }
+                  if (isEdit && originalValues[entityId]) {
+                    orig = originalValues[entityId];
+                  }
+
+                  // Prepare sentence highlight values
+                  const origSentence = (Array.isArray(orig.sentence) ? orig.sentence[0] : (entity.sentence ? (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) : '')) || '';
+                  const origStart = typeof (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : undefined)) === 'number' ? (Array.isArray(orig.start) ? orig.start[0] : (entity.start ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0)) : 0;
+                  const origEnd = typeof (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : undefined)) === 'number' ? (Array.isArray(orig.end) ? orig.end[0] : (entity.end ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0)) : 0;
+                  const origEntityText = Array.isArray(orig.entity) ? orig.entity[0] : (entity.entity ? (Array.isArray(entity.entity) ? entity.entity[0] : entity.entity) : undefined);
+                  const evalSentence = (Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence) || '';
+                  const evalStart = typeof (Array.isArray(entity.start) ? entity.start[0] : entity.start) === 'number' ? (Array.isArray(entity.start) ? entity.start[0] : entity.start) : 0;
+                  const evalEnd = typeof (Array.isArray(entity.end) ? entity.end[0] : entity.end) === 'number' ? (Array.isArray(entity.end) ? entity.end[0] : entity.end) : 0;
+                  const evalEntityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+
+                  return (
+                    <div key={entityId + '-' + index} className="col-md-6 col-lg-4" id={`entity-row-${entityId}`}>
+                      <div className={`card h-100 ${isCorrected || isApprovedWithStartEnd ? 'border-warning' : ''}`}>
+                        <div className="card-header d-flex justify-content-between align-items-center">
+                          <h5 className="mb-0">Entity #{idx + 1}</h5>
+                          {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && (
+                            <div>
+                              {status === 'pending' && !allEvaluated ? (
+                                <div className="btn-group">
+                                  <button
+                                    className="btn btn-outline-success btn-sm"
+                                    onClick={() => handleApprove(entityId)}
+                                    title="Approve"
+                                  >
+                                    <FaThumbsUp />
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-danger btn-sm"
+                                    onClick={() => handleStartCorrection(entityId, index)}
+                                    title="Needs Correction"
+                                  >
+                                    <FaThumbsDown />
                                   </button>
                                 </div>
-                              </div>
-                            </form>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return (
-                      <tr key={entityId + '-' + index} id={`entity-row-${entityId}`} style={isCorrected || isApprovedWithStartEnd ? { background: '#fff3cd' } : {}}>
-                        <td>{idx + 1}</td>
-                        {[...allFields].map((field: string) => {
-                          // Only show start/end correction/highlighting if those fields exist
-                          if ((field === 'start' || field === 'end') && entity[field] === undefined) {
-                            return <td key={field}></td>;
-                          }
-                          if (field === 'sentence' && (entity['start'] !== undefined && entity['end'] !== undefined)) {
-                            // Show highlight if start/end exist
+                              ) : status === 'approved' ? (
+                                <span className="badge bg-success">Approved</span>
+                              ) : status === 'corrected' ? (
+                                <span className="badge bg-warning text-dark">Corrected</span>
+                              ) : (
+                                <span className="badge bg-secondary">Pending</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="card-body">
+                          {[...allFields].map((field: string) => {
+                            // Only show start/end correction/highlighting if those fields exist
+                            if ((field === 'start' || field === 'end') && entity[field] === undefined) {
+                              return null;
+                            }
+                            // Special handling for sentence/start/end triplets
+                            if (field === 'sentence' && (entity['start'] !== undefined && entity['end'] !== undefined)) {
+                              const sentences = Array.isArray(entity['sentence']) ? entity['sentence'] : [entity['sentence']];
+                              const starts = Array.isArray(entity['start']) ? entity['start'] : [entity['start']];
+                              const ends = Array.isArray(entity['end']) ? entity['end'] : [entity['end']];
+                              const entityTexts = Array.isArray(entity['entity']) ? entity['entity'] : [entity['entity']];
+                              return (
+                                <div key={field} className="mb-3">
+                                  <h6 className="text-muted mb-2">{field.replace(/_/g, ' ')}:</h6>
+                                  <div className="p-2 bg-light rounded">
+                                    {sentences.map((sentence, idx) => (
+                                      <div key={idx} className="mb-2">
+                                        {highlightEntity(
+                                          sentence || '',
+                                          Number(starts[idx]) || 0,
+                                          Number(ends[idx]) || 0,
+                                          entityTexts[idx]
+                                        )}
+                                        <div className="text-muted small mt-1">
+                                          Start: {starts[idx]}, End: {ends[idx]}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            // For other array fields, show all values
+                            const value = entity[field];
+                            if (Array.isArray(value) && value.length > 0) {
+                              // Special formatting for remarks, paper_title, doi, etc.
+                              if (field === 'remarks' || field === 'paper_title' || field === 'doi') {
+                                return (
+                                  <div key={field} className="mb-2">
+                                    <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                    <ul className="mb-0 ps-3">
+                                      {value.map((v: any, idx: number) => (
+                                        <li key={idx}>{v}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                );
+                              }
+                              // For judge_score, paper_location, show as comma-separated
+                              if (field === 'judge_score' || field === 'paper_location') {
+                                return (
+                                  <div key={field} className="mb-2">
+                                    <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                    <div>{value.join(', ')}</div>
+                                  </div>
+                                );
+                              }
+                              // Default: show each value on its own line
+                              return (
+                                <div key={field} className="mb-2">
+                                  <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                  <ul className="mb-0 ps-3">
+                                    {value.map((v: any, idx: number) => (
+                                      <li key={idx}>{v}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            }
+                            // Fallback for non-array fields
+                            const currVal = value;
                             return (
-                              <td key={field}>
-                                {highlightEntity(
-                                  Array.isArray(entity[field]) ? entity[field][0] : entity[field] || '',
-                                  Number(Array.isArray(entity['start']) ? entity['start'][0] : entity['start']) || 0,
-                                  Number(Array.isArray(entity['end']) ? entity['end'][0] : entity['end']) || 0,
-                                  Array.isArray(entity['entity']) ? entity['entity'][0] : entity['entity']
-                                )}
-                              </td>
-                            );
-                          }
-                          // Correction display: only if corrected and field in corrections
-                          const origVal = corrections && corrections.hasOwnProperty(field) ? corrections[field] : (Array.isArray(orig[field]) ? orig[field][0] : orig[field]);
-                          const currVal = Array.isArray(entity[field]) ? entity[field][0] : entity[field];
-                          const showCorrection = (status === 'corrected' || isApprovedWithStartEnd) && corrections && corrections.hasOwnProperty(field);
-                          if (showCorrection && origVal !== undefined && currVal !== undefined && origVal !== currVal) {
-                            return (
-                              <td key={field}>
-                                <span style={{ textDecoration: 'line-through', color: 'red' }}>{String(origVal)}</span>
-                                <span style={{ color: 'green', marginLeft: 4 }}>✓ {String(currVal)}</span>
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key={field}>
-                              {displayValue(currVal, false, origVal)}
-                            </td>
-                          );
-                        })}
-                        {!(hasEvalFile && !(filePath?.endsWith('_eval.json') ?? false)) && (
-                          <td style={{ minWidth: 160 }}>
-                            {status === 'pending' && !allEvaluated ? (
-                              <div className="d-flex flex-column flex-md-row gap-2">
-                                <button
-                                  className="btn btn-outline-success btn-sm w-100"
-                                  onClick={() => handleApprove(entityId)}
-                                  title="Approve"
-                                >
-                                  <FaThumbsUp /> Approve
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm w-100"
-                                  onClick={() => handleStartCorrection(entityId)}
-                                  title="Needs Correction"
-                                >
-                                  <FaThumbsDown /> Needs Correction
-                                </button>
+                              <div key={field} className="mb-2">
+                                <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
+                                <div>{displayValue(currVal, false, undefined)}</div>
                               </div>
-                            ) : status === 'approved' ? (
-                              <span className="badge bg-success w-100">Approved</span>
-                            ) : status === 'corrected' ? (
-                              <span className="badge bg-warning text-dark w-100">Corrected</span>
-                            ) : (
-                              <span className="badge bg-secondary w-100">Pending</span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  });
-                })}
-              </tbody>
-            </table>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })}
+            </div>
           </div>
         </div>
       </div>
+      {modalEntityId !== null && (
+        <Modal show onHide={handleCloseModal} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Provide Corrections</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <form onSubmit={e => { e.preventDefault(); handleSaveCorrection(modalEntityId!); handleCloseModal(); }}>
+              {Array.from(allFields).map(field => {
+                const entity = evaluation[modalEntityId!]?.[modalEntityIndex] || {};
+                const value = entity[field];
+                const isArray = Array.isArray(value);
+                // Helper to update array field
+                const handleArrayChange = (idx: number, newVal: string) => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: value.map((v: any, j: number) => j === idx ? newVal : v) } : e
+                    ),
+                  }));
+                  setCorrections(prev => ({
+                    ...prev,
+                    [modalEntityId!]: { ...(prev[modalEntityId!] || {}), [field]: true },
+                  }));
+                };
+                // Helper to add/remove array element
+                const handleAdd = () => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: [...(value || []), ''] } : e
+                    ),
+                  }));
+                };
+                const handleRemove = (idx: number) => {
+                  setEvaluation(prev => ({
+                    ...prev,
+                    [modalEntityId!]: prev[modalEntityId!].map((e, i) =>
+                      i === modalEntityIndex ? { ...e, [field]: value.filter((_: any, j: number) => j !== idx) } : e
+                    ),
+                  }));
+                };
+                if (isArray) {
+                  return (
+                    <div className="mb-2" key={field}>
+                      <label className="fw-bold text-capitalize">{field.replace(/_/g, ' ')}:</label>
+                      {value.map((v: any, idx: number) => (
+                        <div className="input-group mb-1" key={idx}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={v || ''}
+                            onChange={e => handleArrayChange(idx, e.target.value)}
+                            readOnly={field === 'sentence'}
+                          />
+                          <button type="button" className="btn btn-outline-danger" onClick={() => handleRemove(idx)} title="Remove">
+                            &minus;
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-outline-primary btn-sm" onClick={handleAdd} title={`Add ${field}`}>+ Add</button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="mb-2 row align-items-center" key={field}>
+                      <label className="col-sm-3 col-form-label fw-bold text-capitalize" htmlFor={`correction-modal-${modalEntityId}-${field}`}>{field.replace(/_/g, ' ')}:</label>
+                      <div className="col-sm-9">
+                        <input
+                          id={`correction-modal-${modalEntityId}-${field}`}
+                          type="text"
+                          className="form-control"
+                          value={value || ''}
+                          onChange={e => handleFieldChange(modalEntityId!, modalEntityIndex, field, e.target.value)}
+                          readOnly={field === 'sentence'}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+              <div className="d-flex justify-content-end mt-3">
+                <Button variant="secondary" onClick={handleCloseModal} className="me-2">Cancel</Button>
+                <Button type="submit" variant="warning">Save Correction</Button>
+              </div>
+            </form>
+          </Modal.Body>
+        </Modal>
+      )}
     </div>
   );
 } 
