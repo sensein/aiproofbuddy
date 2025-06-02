@@ -746,8 +746,8 @@ export default function EvaluatePage() {
                             // For other array fields, show all values
                             const value = entity[field];
                             if (Array.isArray(value) && value.length > 0) {
-                              // Special formatting for remarks, paper_title, doi, etc.
-                              if (field === 'remarks' || field === 'paper_title' || field === 'doi') {
+                              // Special formatting for remarks, paper_title, doi, paper_location, judge_score, etc.
+                              if (field === 'remarks' || field === 'paper_title' || field === 'doi' || field === 'paper_location' || field === 'judge_score') {
                                 return (
                                   <div key={field} className="mb-2">
                                     <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
@@ -756,15 +756,6 @@ export default function EvaluatePage() {
                                         <li key={idx}>{v}</li>
                                       ))}
                                     </ul>
-                                  </div>
-                                );
-                              }
-                              // For judge_score, paper_location, show as comma-separated
-                              if (field === 'judge_score' || field === 'paper_location') {
-                                return (
-                                  <div key={field} className="mb-2">
-                                    <h6 className="text-muted mb-1">{field.replace(/_/g, ' ')}:</h6>
-                                    <div>{value.join(', ')}</div>
                                   </div>
                                 );
                               }
