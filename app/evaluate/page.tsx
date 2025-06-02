@@ -277,20 +277,20 @@ export default function EvaluatePage() {
         return;
       }
       // Fallback: single sentence/entity
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
+      const sentenceVal = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
+      const entityTextVal = Array.isArray(entity.entity) ? entity.entity[0] : entity.entity;
       let start = Array.isArray(entity.start) ? entity.start[0] : entity.start;
       let end = Array.isArray(entity.end) ? entity.end[0] : entity.end;
-      if (sentence && entityText) {
-        const lowerSentence = sentence.toLowerCase();
-        const lowerEntity = entityText.toLowerCase();
+      if (typeof sentenceVal === 'string' && typeof entityTextVal === 'string') {
+        const lowerSentence = (sentenceVal as string).toLowerCase();
+        const lowerEntity = (entityTextVal as string).toLowerCase();
         const idx = lowerSentence.indexOf(lowerEntity);
-        if (idx !== -1 && (start !== idx || end !== idx + entityText.length)) {
+        if (idx !== -1 && (start !== idx || end !== idx + (entityTextVal as string).length)) {
           corrections = { start, end };
           setEvaluation(prev => ({
             ...prev,
             [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, approved: true, corrections, start: [idx], end: [idx + entityText.length] } : e
+              i === 0 ? { ...e, approved: true, corrections, start: [idx], end: [idx + (entityTextVal as string).length] } : e
             ),
           }));
           setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
@@ -308,6 +308,7 @@ export default function EvaluatePage() {
       setEvaluationStatus(prev => ({ ...prev, [entityId]: 'approved' }));
       setEditMode(prev => ({ ...prev, [entityId]: false }));
     }
+    setEvaluation(prev => ({ ...prev }));
   };
 
   const handleStartCorrection = (entityId: string, idx: number = 0) => {
@@ -368,40 +369,39 @@ export default function EvaluatePage() {
     const orig = originalValues[entityId] || {};
     let corrections: Record<string, any> = {};
 
-    // Find all corrected fields and store the old value in corrections
+    // Deep equality check for arrays/objects
+    const deepEqual = (a: any, b: any) => {
+      if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+          if (!deepEqual(a[i], b[i])) return false;
+        }
+        return true;
+      }
+      if (typeof a === 'object' && typeof b === 'object') {
+        return JSON.stringify(a) === JSON.stringify(b);
+      }
+      return a === b;
+    };
+
+    // Find all corrected fields and store the old value in corrections (deep equality)
     Object.keys(entity).forEach(field => {
-      if (field !== 'judge_score' && field !== 'approved' && entity[field] !== orig[field]) {
-        corrections[field] = orig[field]; // Store the old value
+      if (field !== 'approved') {
+        if (!deepEqual(entity[field], orig[field])) {
+          corrections[field] = orig[field];
+        }
       }
     });
 
-    // If entity text was corrected, auto-adjust start/end
-    if (corrections.entity && entity.sentence) {
-      const sentence = Array.isArray(entity.sentence) ? entity.sentence[0] : entity.sentence;
-      const entityText = entity.entity;
-      if (entityText) {
-        const lowerSentence = sentence.toLowerCase();
-        const lowerEntity = entityText.toLowerCase();
-        const idx = lowerSentence.indexOf(lowerEntity);
-        if (idx !== -1) {
-          corrections.start = orig.start;
-          corrections.end = orig.end;
-          setEvaluation(prev => ({
-            ...prev,
-            [entityId]: prev[entityId].map((e, i) =>
-              i === 0 ? { ...e, start: [idx], end: [idx + entityText.length] } : e
-            ),
-          }));
-        }
-      }
-    }
-
+    // Immediately update the corrections field in the evaluation state for UI
     setEvaluation(prev => ({
       ...prev,
       [entityId]: prev[entityId].map((e, i) =>
         i === 0 ? { ...e, approved: false, corrections } : e
       ),
     }));
+    // Force re-render
+    setEvaluation(prev => ({ ...prev }));
   };
 
   const handleSave = async () => {
@@ -414,7 +414,16 @@ export default function EvaluatePage() {
     try {
       // Use the correct base for merging: if editing _eval.json, use evaluation as base; else use data
       const isEvalFile = filePath.endsWith('_eval.json');
-      const mergedData = isEvalFile ? JSON.parse(JSON.stringify({ judged_structured_information: evaluation })) : JSON.parse(JSON.stringify(data));
+      let mergedData;
+      let baseEntities = null;
+      if (isEvalFile) {
+        // Use the loaded _eval.json as the base for comparison and merging
+        mergedData = { judged_structured_information: JSON.parse(JSON.stringify(evaluation)) };
+        baseEntities = evaluation; // Use the current evaluation state as the base
+      } else {
+        mergedData = JSON.parse(JSON.stringify(data));
+        baseEntities = data?.judged_structured_information || data;
+      }
 
       // Find the key in the base data that holds the entities
       let entityKey = null;
@@ -432,20 +441,36 @@ export default function EvaluatePage() {
 
       // Helper to get the evaluation entity for a given index/key
       const getEvalEntity = (idxOrKey: string|number) => evaluation[idxOrKey]?.[0];
-      // Helper to get the original entity for a given index/key
-      const getOrigEntity = (entities: any, idxOrKey: string|number) => {
-        if (Array.isArray(entities)) return entities[Number(idxOrKey)];
-        if (typeof entities === 'object') return entities[idxOrKey]?.[0];
+      // Helper to get the base entity for a given index/key
+      const getBaseEntity = (entities: any, idxOrKey: string|number) => {
+        if (Array.isArray(entities)) return entities[Number(idxOrKey)]?.[0] || entities[Number(idxOrKey)];
+        if (typeof entities === 'object') return entities[idxOrKey]?.[0] || entities[idxOrKey];
         return undefined;
+      };
+
+      // Deep equality check for arrays/objects
+      const deepEqual = (a: any, b: any) => {
+        if (Array.isArray(a) && Array.isArray(b)) {
+          if (a.length !== b.length) return false;
+          for (let i = 0; i < a.length; i++) {
+            if (!deepEqual(a[i], b[i])) return false;
+          }
+          return true;
+        }
+        if (typeof a === 'object' && typeof b === 'object') {
+          return JSON.stringify(a) === JSON.stringify(b);
+        }
+        return a === b;
       };
 
       if (entityKey) {
         const entitiesObj = mergedData[entityKey];
+        const baseEntitiesObj = baseEntities && baseEntities[entityKey] ? baseEntities[entityKey] : baseEntities;
         if (entitiesObj && typeof entitiesObj === 'object' && !Array.isArray(entitiesObj)) {
           // Object of arrays (your format)
           Object.entries(entitiesObj).forEach(([key, arr]) => {
             if (Array.isArray(arr) && arr[0]) {
-              const origEntity = arr[0];
+              const baseEntity = getBaseEntity(baseEntitiesObj, key) || {};
               const evalEntity = getEvalEntity(key);
               if (evalEntity) {
                 // Build corrections object with old values only (deep equality check, including arrays)
@@ -454,13 +479,13 @@ export default function EvaluatePage() {
                   if (
                     field !== 'approved' &&
                     field !== 'corrections' &&
-                    JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
+                    !deepEqual(baseEntity[field], evalEntity[field])
                   ) {
-                    corrections[field] = origEntity[field];
+                    corrections[field] = baseEntity[field];
                   }
                 });
                 // Merge new values into entity
-                let mergedEntity = { ...origEntity };
+                let mergedEntity = { ...baseEntity };
                 Object.keys(evalEntity).forEach(field => {
                   if (field !== 'approved' && field !== 'corrections') {
                     mergedEntity[field] = evalEntity[field];
@@ -488,20 +513,20 @@ export default function EvaluatePage() {
         } else if (Array.isArray(entitiesObj)) {
           // Flat array (fallback for other formats)
           entitiesObj.forEach((entity: any, idx: number) => {
+            const baseEntity = getBaseEntity(baseEntitiesObj, idx + 1) || {};
             const evalEntity = getEvalEntity(idx + 1);
             if (evalEntity) {
-              const origEntity = entity;
               const corrections: Record<string, any> = {};
               Object.keys(evalEntity).forEach(field => {
                 if (
                   field !== 'approved' &&
                   field !== 'corrections' &&
-                  JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
+                  !deepEqual(baseEntity[field], evalEntity[field])
                 ) {
-                  corrections[field] = origEntity[field];
+                  corrections[field] = baseEntity[field];
                 }
               });
-              let mergedEntity = { ...origEntity };
+              let mergedEntity = { ...baseEntity };
               Object.keys(evalEntity).forEach(field => {
                 if (field !== 'approved' && field !== 'corrections') {
                   mergedEntity[field] = evalEntity[field];
@@ -532,20 +557,20 @@ export default function EvaluatePage() {
       } else if (Array.isArray(mergedData)) {
         // If the root is an array, update each entity with evaluation info
         mergedData.forEach((entity: any, idx: number) => {
+          const baseEntity = getBaseEntity(baseEntities, idx + 1) || {};
           const evalEntity = getEvalEntity(idx + 1);
           if (evalEntity) {
-            const origEntity = entity;
             const corrections: Record<string, any> = {};
             Object.keys(evalEntity).forEach(field => {
               if (
                 field !== 'approved' &&
                 field !== 'corrections' &&
-                JSON.stringify(origEntity[field]) !== JSON.stringify(evalEntity[field])
+                !deepEqual(baseEntity[field], evalEntity[field])
               ) {
-                corrections[field] = origEntity[field];
+                corrections[field] = baseEntity[field];
               }
             });
-            let mergedEntity = { ...origEntity };
+            let mergedEntity = { ...baseEntity };
             Object.keys(evalEntity).forEach(field => {
               if (field !== 'approved' && field !== 'corrections') {
                 mergedEntity[field] = evalEntity[field];
