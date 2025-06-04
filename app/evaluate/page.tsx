@@ -33,11 +33,18 @@ interface Evaluation {
 // Helper to find the first array of objects in a JSON object (generalized)
 function findFirstEntityArray(obj: any): { key: string, value: any[] } | null {
   if (!obj || typeof obj !== 'object') return null;
+  
+  // First check if the object itself is an array of objects
+  if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object') {
+    return { key: '', value: obj };
+  }
+
+  // Then check all properties
   for (const [key, value] of Object.entries(obj)) {
     if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
       return { key, value };
     }
-    if (typeof value === 'object') {
+    if (typeof value === 'object' && value !== null) {
       const found = findFirstEntityArray(value);
       if (found) return found;
     }
@@ -87,7 +94,7 @@ function displayValue(val: any, isCorrected: boolean, origVal: any) {
     return String(v);
   };
   // Robust equality check for all types
-  const isEqual = (a: any, b: any) => {
+  const isEqual = (a: any, b: any): boolean => {
     if (typeof a !== typeof b) return false;
     if (typeof a === 'object') return JSON.stringify(a) === JSON.stringify(b);
     return a === b;
@@ -95,8 +102,8 @@ function displayValue(val: any, isCorrected: boolean, origVal: any) {
   if (isCorrected && !isEqual(val, origVal)) {
     return (
       <span>
-        <span style={{ textDecoration: 'line-through', color: 'red' }}>{toDisplay(origVal)}</span>
-        <span style={{ color: 'green' }}> ✓ {toDisplay(val)}</span>
+        <span className="text-decoration-line-through text-danger">{toDisplay(origVal)}</span>
+        <span className="text-success ms-2">✓ {toDisplay(val)}</span>
       </span>
     );
   }
@@ -149,30 +156,58 @@ export default function EvaluatePage() {
         }
 
         setData(originalData);
-        // If evalData exists, use it; otherwise, use judged_structured_information or first array of objects
-        if (evalData?.judged_structured_information) {
-          setEvaluation(evalData.judged_structured_information);
-        } else if (originalData.judged_structured_information) {
-          setEvaluation(originalData.judged_structured_information);
-        } else if (Array.isArray(originalData) && originalData.length > 0 && typeof originalData[0] === 'object') {
-          // If the root is an array of objects, use it directly
-          const evalObj: any = {};
-          originalData.forEach((item, idx) => {
-            evalObj[(idx + 1).toString()] = [{ ...item }];
-          });
-          setEvaluation(evalObj);
-        } else {
-          const found = findFirstEntityArray(originalData);
-          if (found) {
-            // Convert array to evaluation object: { '1': [item1], '2': [item2], ... }
-            const evalObj: any = {};
-            found.value.forEach((item, idx) => {
-              evalObj[(idx + 1).toString()] = [{ ...item }];
-            });
-            setEvaluation(evalObj);
-          } else {
-            setEvaluation({});
+
+        // Helper function to normalize data structure
+        const normalizeData = (data: any): Evaluation => {
+          // If data is already in the correct format, return it
+          if (data?.judged_structured_information) {
+            return data.judged_structured_information;
           }
+
+          // If data is an array of objects, convert to evaluation format
+          if (Array.isArray(data)) {
+            const evalObj: Evaluation = {};
+            data.forEach((item, idx) => {
+              if (typeof item === 'object' && item !== null) {
+                evalObj[(idx + 1).toString()] = [{ ...item }];
+              }
+            });
+            return evalObj;
+          }
+
+          // If data is an object, try to find arrays of objects
+          if (typeof data === 'object' && data !== null) {
+            // First try to find arrays of objects at the top level
+            for (const [key, value] of Object.entries(data)) {
+              if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
+                const evalObj: Evaluation = {};
+                value.forEach((item, idx) => {
+                  evalObj[(idx + 1).toString()] = [{ ...item }];
+                });
+                return evalObj;
+              }
+            }
+
+            // If no arrays found, try to find nested arrays
+            const found = findFirstEntityArray(data);
+            if (found) {
+              const evalObj: Evaluation = {};
+              found.value.forEach((item, idx) => {
+                evalObj[(idx + 1).toString()] = [{ ...item }];
+              });
+              return evalObj;
+            }
+          }
+
+          // If no valid structure found, return empty object
+          return {};
+        };
+
+        // Set evaluation data
+        if (evalData) {
+          setEvaluation(normalizeData(evalData));
+        } else {
+          setEvaluation(normalizeData(originalData));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load file');
@@ -364,13 +399,16 @@ export default function EvaluatePage() {
   const handleSaveCorrection = (entityId: string) => {
     setEditMode(prev => ({ ...prev, [entityId]: false }));
 
-    // Get the updated entity
+    // Get the updated entity and original values
     const entity = evaluation[entityId]?.[0];
     const orig = originalValues[entityId] || {};
     let corrections: Record<string, any> = {};
 
     // Deep equality check for arrays/objects
-    const deepEqual = (a: any, b: any) => {
+    const deepEqual = (a: any, b: any): boolean => {
+      if (a === b) return true;
+      if (typeof a !== typeof b) return false;
+      if (a === null || b === null) return false;
       if (Array.isArray(a) && Array.isArray(b)) {
         if (a.length !== b.length) return false;
         for (let i = 0; i < a.length; i++) {
@@ -379,27 +417,42 @@ export default function EvaluatePage() {
         return true;
       }
       if (typeof a === 'object' && typeof b === 'object') {
-        return JSON.stringify(a) === JSON.stringify(b);
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        return keysA.every(key => deepEqual(a[key], b[key]));
       }
-      return a === b;
+      return false;
     };
 
-    // Find all corrected fields and store the old value in corrections (deep equality)
+    // Find all corrected fields and store the old value in corrections
     Object.keys(entity).forEach(field => {
-      if (field !== 'approved') {
+      if (field !== 'approved' && field !== 'corrections') {
         if (!deepEqual(entity[field], orig[field])) {
           corrections[field] = orig[field];
         }
       }
     });
 
-    // Immediately update the corrections field in the evaluation state for UI
+    // Create the updated entity with corrections
+    const updatedEntity = {
+      ...entity,
+      corrections: Object.keys(corrections).length > 0 ? corrections : undefined,
+      approved: false
+    };
+
+    // Update the evaluation state
     setEvaluation(prev => ({
       ...prev,
-      [entityId]: prev[entityId].map((e, i) =>
-        i === 0 ? { ...e, approved: false, corrections } : e
-      ),
+      [entityId]: [updatedEntity]
     }));
+
+    // Update corrections state
+    setCorrections(prev => ({
+      ...prev,
+      [entityId]: corrections
+    }));
+
     // Force re-render
     setEvaluation(prev => ({ ...prev }));
   };
@@ -412,65 +465,22 @@ export default function EvaluatePage() {
 
     setSaving(true);
     try {
-      const isEvalFile = filePath.endsWith('_eval.json');
-      let mergedData: any;
-      if (isEvalFile) {
-        // For _eval.json, always merge and write the current evaluation state, ensuring corrections are preserved
-        mergedData = { judged_structured_information: {} };
-        Object.entries(evaluation).forEach(([entityId, entities]) => {
-          const evalEntity = entities[0];
-          let corrections: Record<string, any> = {};
-          const prevEntity = entities[0]._prev || {};
-          const deepEqual = (a: any, b: any) => {
-            if (Array.isArray(a) && Array.isArray(b)) {
-              if (a.length !== b.length) return false;
-              for (let i = 0; i < a.length; i++) {
-                if (!deepEqual(a[i], b[i])) return false;
-              }
-              return true;
-            }
-            if (typeof a === 'object' && typeof b === 'object') {
-              return JSON.stringify(a) === JSON.stringify(b);
-            }
-            return a === b;
-          };
-          Object.keys(evalEntity).forEach(field => {
-            if (field !== 'approved' && field !== 'corrections') {
-              if (evalEntity.corrections && evalEntity.corrections[field] !== undefined) {
-                corrections[field] = evalEntity.corrections[field];
-              } else if (prevEntity[field] !== undefined && !deepEqual(evalEntity[field], prevEntity[field])) {
-                corrections[field] = prevEntity[field];
-              }
-            }
-          });
-          const merged = { ...evalEntity };
-          if (Object.keys(corrections).length > 0) {
-            merged.corrections = corrections;
-          } else {
-            delete merged.corrections;
-          }
-          mergedData.judged_structured_information[entityId] = [merged];
-        });
-      } else {
-        // Restore previous original file save logic
-        mergedData = JSON.parse(JSON.stringify(data));
-        // Find the key in the original data that holds the entities
-        let entityKey: string | null = null;
-        if (mergedData && typeof mergedData === 'object') {
-          for (const [key, value] of Object.entries(mergedData)) {
-            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
-              entityKey = key;
-              break;
-            }
-          }
-          if (!entityKey && mergedData.judged_structured_information) {
-            entityKey = 'judged_structured_information';
-          }
-        }
-        // Helper to get the evaluation entity for a given index/key
-        const getEvalEntity = (idxOrKey: string|number) => evaluation[idxOrKey]?.[0];
+      let mergedData: any = { judged_structured_information: {} };
+      
+      // Process each entity
+      Object.entries(evaluation).forEach(([entityId, entities]) => {
+        const evalEntity = entities[0];
+        if (!evalEntity) return;
+
+        // Get original values from corrections
+        const origValues = evalEntity.corrections || {};
+        let corrections: Record<string, any> = {};
+
         // Deep equality check for arrays/objects
-        const deepEqual = (a: any, b: any) => {
+        const deepEqual = (a: any, b: any): boolean => {
+          if (a === b) return true;
+          if (typeof a !== typeof b) return false;
+          if (a === null || b === null) return false;
           if (Array.isArray(a) && Array.isArray(b)) {
             if (a.length !== b.length) return false;
             for (let i = 0; i < a.length; i++) {
@@ -479,55 +489,34 @@ export default function EvaluatePage() {
             return true;
           }
           if (typeof a === 'object' && typeof b === 'object') {
-            return JSON.stringify(a) === JSON.stringify(b);
+            const keysA = Object.keys(a);
+            const keysB = Object.keys(b);
+            if (keysA.length !== keysB.length) return false;
+            return keysA.every(key => deepEqual(a[key], b[key]));
           }
-          return a === b;
+          return false;
         };
-        if (entityKey) {
-          const entitiesObj = mergedData[entityKey];
-          if (entitiesObj && typeof entitiesObj === 'object' && !Array.isArray(entitiesObj)) {
-            Object.entries(entitiesObj).forEach(([key, arr]) => {
-              if (Array.isArray(arr) && arr[0]) {
-                const origEntity = arr[0];
-                const evalEntity = getEvalEntity(key);
-                if (evalEntity) {
-                  const corrections: Record<string, any> = {};
-                  Object.keys(evalEntity).forEach(field => {
-                    if (
-                      field !== 'approved' &&
-                      field !== 'corrections' &&
-                      !deepEqual(origEntity[field], evalEntity[field])
-                    ) {
-                      corrections[field] = origEntity[field];
-                    }
-                  });
-                  let mergedEntity = { ...origEntity };
-                  Object.keys(evalEntity).forEach(field => {
-                    if (field !== 'approved' && field !== 'corrections') {
-                      mergedEntity[field] = evalEntity[field];
-                    }
-                  });
-                  const correctionKeys = Object.keys(corrections);
-                  const allowed = new Set(['start', 'end']);
-                  const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => allowed.has(k));
-                  if (evalEntity.approved === true && (correctionKeys.length === 0 || onlyStartEnd)) {
-                    mergedEntity = { ...mergedEntity, approved: true };
-                    if (onlyStartEnd) mergedEntity = { ...mergedEntity, corrections };
-                    else delete mergedEntity.corrections;
-                  } else if (correctionKeys.length > 0) {
-                    mergedEntity = { ...mergedEntity, approved: false, corrections };
-                  } else {
-                    delete mergedEntity.approved;
-                    delete mergedEntity.corrections;
-                  }
-                  arr[0] = mergedEntity;
-                }
-              }
-            });
-            mergedData[entityKey] = entitiesObj;
+
+        // Check each field for corrections
+        Object.keys(evalEntity).forEach(field => {
+          if (field !== 'approved' && field !== 'corrections') {
+            const origValue = origValues[field];
+            const currentValue = evalEntity[field];
+            
+            if (origValue !== undefined && !deepEqual(currentValue, origValue)) {
+              corrections[field] = origValue;
+            }
           }
-        }
-      }
+        });
+
+        // Create the final entity object
+        const finalEntity = {
+          ...evalEntity,
+          corrections: Object.keys(corrections).length > 0 ? corrections : undefined
+        };
+
+        mergedData.judged_structured_information[entityId] = [finalEntity];
+      });
 
       const evalPath = getEvalPath(filePath!);
       const response = await fetch(`/api/files?path=${encodeURIComponent(evalPath)}`, {
@@ -768,7 +757,7 @@ export default function EvaluatePage() {
                                             </li>
                                           );
                                         } else {
-                                          return <li key={idx}>{v}</li>;
+                                          return <li key={idx}>{String(v)}</li>;
                                         }
                                       })}
                                     </ul>
@@ -790,7 +779,7 @@ export default function EvaluatePage() {
                                           </li>
                                         );
                                       } else {
-                                        return <li key={idx}>{v}</li>;
+                                        return <li key={idx}>{String(v)}</li>;
                                       }
                                     })}
                                   </ul>
@@ -899,7 +888,7 @@ export default function EvaluatePage() {
                           id={`correction-modal-${modalEntityId}-${field}`}
                           type="text"
                           className="form-control"
-                          value={value || ''}
+                          value={String(value || '')}
                           onChange={e => handleFieldChange(modalEntityId!, modalEntityIndex, field, e.target.value)}
                           readOnly={field === 'sentence'}
                         />
