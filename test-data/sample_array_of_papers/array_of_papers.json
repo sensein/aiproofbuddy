@@ -1,0 +1,141 @@
+[
+  {
+    "paper_id": "10.1234/jns.2025.001",
+    "title": "Brain-Inspired AI for Cognitive Modeling",
+    "authors": [
+      {
+        "name": "Dr. Emily Chen",
+        "affiliation": {
+          "name": "MIT CSAIL",
+          "country": "USA"
+        },
+        "orcid": "0000-0002-1234-5678"
+      },
+      {
+        "name": "Dr. Tek Raj Chhetri",
+        "affiliation": {
+          "name": "CAIR-Nepal",
+          "country": "Nepal"
+        },
+        "orcid": "0000-0003-8765-4321"
+      }
+    ],
+    "abstract": "This paper explores the intersection of cognitive neuroscience and AI...",
+    "keywords": ["Cognitive Modeling", "Neuroscience", "AI"],
+    "citations": [
+      {
+        "paper_id": "10.5678/jai.2022.045",
+        "title": "Neural Mechanisms of Memory",
+        "year": 2022
+      }
+    ],
+    "methods": [
+      {
+        "name": "fMRI Analysis",
+        "tools": ["SPM12", "Nipype"],
+        "datasets": [
+          {
+            "name": "Human Connectome Project",
+            "access": "open",
+            "url": "https://www.humanconnectome.org/"
+          }
+        ]
+      }
+    ],
+    "results": {
+      "summary": "Improved model prediction accuracy by 15% compared to baseline.",
+      "figures": [
+        {
+          "figure_id": "fig1",
+          "description": "Activation map showing PFC engagement.",
+          "url": "https://journal.org/figures/fig1.png"
+        }
+      ]
+    }
+  },
+  {
+    "paper_id": "10.4321/jns.2025.002",
+    "title": "Multimodal Embeddings in Cognitive Robotics",
+    "authors": [
+      {
+        "name": "Prof. Sara Novak",
+        "affiliation": {
+          "name": "TU Munich",
+          "country": "Germany"
+        },
+        "orcid": "0000-0003-2222-3333"
+      }
+    ],
+    "abstract": "We propose a new multimodal embedding framework for robotic learning.",
+    "keywords": ["Robotics", "Multimodal Learning", "Neural Embeddings"],
+    "citations": [
+      {
+        "paper_id": "10.1111/cogrob.2023.010",
+        "title": "Cross-modal Transfer in Robotics",
+        "year": 2023
+      },
+      {
+        "paper_id": "10.2222/ai.2020.005",
+        "title": "Deep Representations for Object Manipulation",
+        "year": 2020
+      }
+    ],
+    "methods": [
+      {
+        "name": "Sensor Fusion",
+        "tools": ["ROS", "PyTorch"],
+        "datasets": [
+          {
+            "name": "iCub Multisense",
+            "access": "restricted",
+            "url": "https://icub.org/data/multisense"
+          }
+        ]
+      }
+    ],
+    "results": {
+      "summary": "The model showed 20% higher generalization across modalities.",
+      "figures": [
+        {
+          "figure_id": "fig2",
+          "description": "Multisensory integration layer performance.",
+          "url": "https://journal.org/figures/fig2.png"
+        }
+      ]
+    }
+  },
+  {
+    "paper_id": "10.5678/nlg.2024.018",
+    "title": "Natural Language Generation for Biomedical Knowledge Graphs",
+    "authors": [
+      {
+        "name": "Dr. Jorge Alvarez",
+        "affiliation": {
+          "name": "University of São Paulo",
+          "country": "Brazil"
+        },
+        "orcid": "0000-0001-9999-1111"
+      }
+    ],
+    "abstract": "This study focuses on generating human-readable summaries from biomedical knowledge graphs.",
+    "keywords": ["NLG", "Knowledge Graphs", "Biomedical Text"],
+    "citations": [],
+    "methods": [
+      {
+        "name": "Triple2Text",
+        "tools": ["Transformers", "SPARQL"],
+        "datasets": [
+          {
+            "name": "BioKG",
+            "access": "open",
+            "url": "https://biokg.org"
+          }
+        ]
+      }
+    ],
+    "results": {
+      "summary": "Generated summaries showed 0.86 BLEU score on benchmark datasets.",
+      "figures": []
+    }
+  }
+]

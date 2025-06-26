@@ -1,0 +1,54 @@
+{
+  "paper_id": "10.1234/jns.2025.001",
+  "title": "Brain-Inspired AI for Cognitive Modeling",
+  "authors": [
+    {
+      "name": "Dr. Emily Chen",
+      "affiliation": {
+        "name": "MIT CSAIL",
+        "country": "USA"
+      },
+      "orcid": "0000-0002-1234-5678"
+    },
+    {
+      "name": "Dr. Tek Raj Chhetri",
+      "affiliation": {
+        "name": "CAIR-Nepal",
+        "country": "Nepal"
+      },
+      "orcid": "0000-0003-8765-4321"
+    }
+  ],
+  "abstract": "This paper explores the intersection of cognitive neuroscience and AI...",
+  "keywords": ["Cognitive Modeling", "Neuroscience", "AI"],
+  "citations": [
+    {
+      "paper_id": "10.5678/jai.2022.045",
+      "title": "Neural Mechanisms of Memory",
+      "year": 2022
+    }
+  ],
+  "methods": [
+    {
+      "name": "fMRI Analysis",
+      "tools": ["SPM12", "Nipype"],
+      "datasets": [
+        {
+          "name": "Human Connectome Project",
+          "access": "open",
+          "url": "https://www.humanconnectome.org/"
+        }
+      ]
+    }
+  ],
+  "results": {
+    "summary": "Improved model prediction accuracy by 15% compared to baseline.",
+    "figures": [
+      {
+        "figure_id": "fig1",
+        "description": "Activation map showing PFC engagement.",
+        "url": "https://journal.org/figures/fig1.png"
+      }
+    ]
+  }
+}
