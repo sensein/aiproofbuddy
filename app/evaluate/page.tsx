@@ -617,17 +617,6 @@ export default function EvaluatePage() {
           )}
         </div>
         <div className="card-body">
-          {incompleteEntityId && (
-            <div className="alert alert-warning d-flex align-items-center justify-content-between">
-              <span>Evaluation is not complete. Please approve or correct all entities.</span>
-              {/* <button className="btn btn-sm btn-primary ms-3" onClick={() => {
-                const el = document.getElementById(`entity-row-${incompleteEntityId}`);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}>
-                Complete Evaluation
-              </button> */}
-            </div>
-          )}
           <div className="table-responsive w-100">
             <div className="row g-4">
               {Object.entries(evaluation).flatMap(([entityId, entities], idx) => {
