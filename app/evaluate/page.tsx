@@ -677,27 +677,28 @@ export default function EvaluatePage() {
                 // Merge the data, keeping original structure but updating with eval values
                 Object.keys(evalNormalized).forEach(entityId => {
                   if (normalizedData[entityId] && Array.isArray(normalizedData[entityId])) {
-                    normalizedData[entityId] = normalizedData[entityId].map((entity, idx) => {
-                      const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
-                        ? evalNormalized[entityId][idx] 
-                        : null;
-                      
-                      if (evalEntity) {
-                        // Merge eval data with original entity, preserving all original fields
-                        return {
-                          ...entity,
-                          ...evalEntity,
-                          // Ensure we don't lose original data
-                          ...Object.keys(entity).reduce((acc, key) => {
-                            if (evalEntity[key] === undefined) {
-                              acc[key] = entity[key];
-                            }
-                            return acc;
-                          }, {} as any)
-                        };
-                      }
-                      return entity;
-                    });
+                    normalizedData[entityId] = Array.isArray(normalizedData[entityId])
+                      ? (normalizedData[entityId] as Array<Entity>).map((entity: Entity, idx: number) => {
+                          const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
+                            ? evalNormalized[entityId][idx] 
+                            : null;
+                          if (evalEntity) {
+                            // Merge eval data with original entity, preserving all original fields
+                            return {
+                              ...entity,
+                              ...evalEntity,
+                              // Ensure we don't lose original data
+                              ...Object.keys(entity).reduce((acc, key) => {
+                                if (evalEntity[key] === undefined) {
+                                  acc[key] = entity[key];
+                                }
+                                return acc;
+                              }, {} as any)
+                            };
+                          }
+                          return entity;
+                        })
+                      : [];
                   }
                 });
               } else {
@@ -706,25 +707,26 @@ export default function EvaluatePage() {
                   const evalNormalized = universalNormalizeData(evalData);
                   Object.keys(evalNormalized).forEach(entityId => {
                     if (normalizedData[entityId] && Array.isArray(normalizedData[entityId])) {
-                      normalizedData[entityId] = normalizedData[entityId].map((entity, idx) => {
-                        const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
-                          ? evalNormalized[entityId][idx] 
-                          : null;
-                        
-                        if (evalEntity) {
-                          return {
-                            ...entity,
-                            ...evalEntity,
-                            ...Object.keys(entity).reduce((acc, key) => {
-                              if (evalEntity[key] === undefined) {
-                                acc[key] = entity[key];
-                              }
-                              return acc;
-                            }, {} as any)
-                          };
-                        }
-                        return entity;
-                      });
+                      normalizedData[entityId] = Array.isArray(normalizedData[entityId])
+                        ? (normalizedData[entityId] as Array<Entity>).map((entity: Entity, idx: number) => {
+                            const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
+                              ? evalNormalized[entityId][idx] 
+                              : null;
+                            if (evalEntity) {
+                              return {
+                                ...entity,
+                                ...evalEntity,
+                                ...Object.keys(entity).reduce((acc, key) => {
+                                  if (evalEntity[key] === undefined) {
+                                    acc[key] = entity[key];
+                                  }
+                                  return acc;
+                                }, {} as any)
+                              };
+                            }
+                            return entity;
+                          })
+                        : [];
                     }
                   });
                 }
@@ -742,25 +744,26 @@ export default function EvaluatePage() {
             const evalNormalized = universalNormalizeData(evalData);
             Object.keys(evalNormalized).forEach(entityId => {
               if (normalizedData[entityId] && Array.isArray(normalizedData[entityId])) {
-                normalizedData[entityId] = normalizedData[entityId].map((entity, idx) => {
-                  const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
-                    ? evalNormalized[entityId][idx] 
-                    : null;
-                  
-                  if (evalEntity) {
-                    return {
-                      ...entity,
-                      ...evalEntity,
-                      ...Object.keys(entity).reduce((acc, key) => {
-                        if (evalEntity[key] === undefined) {
-                          acc[key] = entity[key];
-                        }
-                        return acc;
-                      }, {} as any)
-                    };
-                  }
-                  return entity;
-                });
+                normalizedData[entityId] = Array.isArray(normalizedData[entityId])
+                  ? (normalizedData[entityId] as Array<Entity>).map((entity: Entity, idx: number) => {
+                      const evalEntity = evalNormalized[entityId] && Array.isArray(evalNormalized[entityId]) 
+                        ? evalNormalized[entityId][idx] 
+                        : null;
+                      if (evalEntity) {
+                        return {
+                          ...entity,
+                          ...evalEntity,
+                          ...Object.keys(entity).reduce((acc, key) => {
+                            if (evalEntity[key] === undefined) {
+                              acc[key] = entity[key];
+                            }
+                            return acc;
+                          }, {} as any)
+                        };
+                      }
+                      return entity;
+                    })
+                  : [];
               }
             });
           }
@@ -1065,51 +1068,57 @@ export default function EvaluatePage() {
     return rest;
   };
 
-  // Flatten all entities from all candidates and root into a single array for unified card rendering
+  // Build the list of entities to display from the original data, not from the evaluation state
   const allEntityCards: Array<{
     entity: Entity;
     entityId: string;
     candidatePath: string;
     idx: number;
     allFields: Set<string>;
+    evalInfo: Partial<Entity>;
   }> = [];
 
   if (structureAnalysis && structureAnalysis.entityCandidates.length > 0) {
     structureAnalysis.entityCandidates.forEach(candidate => {
-      const evaluation = evaluations[candidate.path] || {};
-      const allFields = Object.values(evaluation).flat().reduce((fields, entity: Entity) => {
+      // Always extract from the original data
+      const candidateData = candidate.data;
+      const normalizedData = universalNormalizeData(candidateData);
+      const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
         Object.keys(entity).forEach(f => fields.add(f));
         return fields;
       }, new Set<string>());
-      Object.entries(evaluation).forEach(([entityId, entities]) => {
+      Object.entries(normalizedData).forEach(([entityId, entities]) => {
         if (!Array.isArray(entities)) return;
-        (entities as Entity[]).forEach((entity: Entity, idx: number) => {
-          allEntityCards.push({ entity, entityId, candidatePath: candidate.path, idx, allFields });
+        (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
+          // Merge in evaluation info if present
+          let evalInfo: Partial<Entity> = {};
+          const evalSection = evaluations[candidate.path];
+          if (evalSection && Array.isArray(evalSection[entityId])) {
+            evalInfo = (evalSection[entityId] as Array<Entity>)[idx] || {};
+          }
+          allEntityCards.push({ entity, entityId, candidatePath: candidate.path, idx, allFields, evalInfo });
         });
       });
     });
   }
   // Fallback: add root entities if no candidates
-  if (allEntityCards.length === 0 && evaluations['root']) {
-    const rootEvaluations = evaluations['root'];
-    const allFields = Array.isArray(rootEvaluations)
-      ? (rootEvaluations as Entity[]).reduce((fields, entity: Entity) => {
-          Object.keys(entity).forEach(f => fields.add(f));
-          return fields;
-        }, new Set<string>())
-      : new Set<string>();
-    if (Array.isArray(rootEvaluations)) {
-      (rootEvaluations as Entity[]).forEach((entity: Entity, idx: number) => {
-        allEntityCards.push({ entity, entityId: idx.toString(), candidatePath: 'root', idx, allFields });
+  if (allEntityCards.length === 0 && data) {
+    const normalizedData = universalNormalizeData(data);
+    const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
+      Object.keys(entity).forEach(f => fields.add(f));
+      return fields;
+    }, new Set<string>());
+    Object.entries(normalizedData).forEach(([entityId, entities]) => {
+      if (!Array.isArray(entities)) return;
+      (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
+        let evalInfo: Partial<Entity> = {};
+        const evalSection = evaluations['root'];
+        if (evalSection && Array.isArray(evalSection[entityId])) {
+          evalInfo = (evalSection[entityId] as Array<Entity>)[idx] || {};
+        }
+        allEntityCards.push({ entity, entityId, candidatePath: 'root', idx, allFields, evalInfo });
       });
-    } else if (typeof rootEvaluations === 'object' && rootEvaluations !== null) {
-      Object.entries(rootEvaluations).forEach(([entityId, entities]) => {
-        if (!Array.isArray(entities)) return;
-        (entities as Entity[]).forEach((entity: Entity, idx: number) => {
-          allEntityCards.push({ entity, entityId, candidatePath: 'root', idx, allFields });
-        });
-      });
-    }
+    });
   }
 
   if (loading) return (
@@ -1165,11 +1174,11 @@ export default function EvaluatePage() {
         <div className="card-body">
           <div className="table-responsive w-100">
             <div className="row g-4">
-              {allEntityCards.map(({ entity, entityId, candidatePath, idx, allFields }) => {
+              {allEntityCards.map(({ entity, entityId, candidatePath, idx, allFields, evalInfo }) => {
                 let status: 'pending' | 'approved' | 'corrected' = 'pending';
-                if (entity.approved === true) status = 'approved';
-                else if (entity.approved === false || entity.corrected === true) status = 'corrected';
-                const corrections = entity.corrections || {};
+                if (evalInfo.approved === true) status = 'approved';
+                else if (evalInfo.approved === false || evalInfo.corrected === true) status = 'corrected';
+                const corrections = evalInfo.corrections || {};
                 const correctionKeys = Object.keys(corrections);
                 const onlyStartEnd = correctionKeys.length > 0 && correctionKeys.every(k => k === 'start' || k === 'end');
                 const isCorrected = status === 'corrected' && Object.keys(corrections).length > 0;
@@ -1201,7 +1210,7 @@ export default function EvaluatePage() {
                 }
 
                 return (
-                  <div key={candidatePath + '-' + entityId + '-' + idx} className="col-lg-4 col-md-6 col-12" id={`entity-row-${entityId}`}> 
+                  <div key={`${candidatePath}-${entityId}-${idx}`} className="col-lg-4 col-md-6 col-12" id={`entity-row-${entityId}`}> 
                     <div className={`card h-100 ${isCorrected || isApprovedWithStartEnd ? 'border-warning' : ''}`}> 
                       <div className="card-header d-flex justify-content-between align-items-center"> 
                         <div>
@@ -1262,7 +1271,6 @@ export default function EvaluatePage() {
               // Get the correct entities based on candidate path
               const candidateEntities = evaluations[modalCandidatePath || 'root'];
               let entity: Entity = {};
-              
               if (Array.isArray(candidateEntities)) {
                 const entityIndex = parseInt(modalEntityId) - 1;
                 entity = candidateEntities[entityIndex] || {};
@@ -1272,18 +1280,15 @@ export default function EvaluatePage() {
                   entity = candidateEntities[entityIdKey][modalEntityIndex || 0] || {};
                 }
               }
-              
               // Get all fields from the entity, including nested objects and arrays
               const allEntityFields = Object.keys(entity).filter(field => 
                 field !== 'approved' && field !== 'corrections' && field !== 'corrected'
               );
-              
               if (allEntityFields.length === 0) {
                 return (
                   <div className="text-muted">No editable fields available for this entity.</div>
                 );
               }
-              
               // Handler for updating nested values
               const handleNestedFieldChange = (fieldPath: (string | number)[], value: any) => {
                 handleFieldChange(
@@ -1294,10 +1299,8 @@ export default function EvaluatePage() {
                   setNestedValue(entity, fieldPath.slice(1), value)
                 );
               };
-              
               // Get original values for highlighting
               const origEntity = originalValues[modalEntityId!] || {};
-              
               return (
                 <form onSubmit={e => { e.preventDefault(); handleSaveCorrection(modalEntityId!); handleCloseModal(); }}>
                   {renderFields({
