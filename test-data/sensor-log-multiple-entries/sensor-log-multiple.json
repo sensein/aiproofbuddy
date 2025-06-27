@@ -1,0 +1,135 @@
+[
+  {
+    "network_id": "iot-campus-network",
+    "timestamp": "2025-06-26T08:00:00Z",
+    "location": {
+      "site": "MIT Media Lab",
+      "building": "E14",
+      "floor": 3
+    },
+    "sensors": [
+      {
+        "id": "temp-001",
+        "type": "temperature",
+        "unit": "Celsius",
+        "location": {
+          "lat": 42.3611,
+          "long": -71.0942,
+          "altitude": 15.2
+        },
+        "readings": [
+          { "ts": "2025-06-26T07:59:00Z", "value": 22.5 },
+          { "ts": "2025-06-26T08:00:00Z", "value": 22.7 }
+        ],
+        "status": "active"
+      },
+      {
+        "id": "hum-001",
+        "type": "humidity",
+        "unit": "%",
+        "location": {
+          "lat": 42.3612,
+          "long": -71.0943,
+          "altitude": 15.3
+        },
+        "readings": [
+          { "ts": "2025-06-26T07:59:00Z", "value": 60.2 },
+          { "ts": "2025-06-26T08:00:00Z", "value": 61.0 }
+        ],
+        "status": "active"
+      }
+    ],
+    "alerts": []
+  },
+  {
+    "network_id": "iot-warehouse-west",
+    "timestamp": "2025-06-26T12:00:00Z",
+    "location": {
+      "site": "Logistics Hub A",
+      "building": "WH-5",
+      "floor": 1
+    },
+    "sensors": [
+      {
+        "id": "motion-091",
+        "type": "motion",
+        "unit": "boolean",
+        "location": {
+          "lat": 35.6895,
+          "long": 139.6917,
+          "altitude": 5.1
+        },
+        "readings": [
+          { "ts": "2025-06-26T11:59:00Z", "value": false },
+          { "ts": "2025-06-26T12:00:00Z", "value": true }
+        ],
+        "status": "active"
+      },
+      {
+        "id": "co2-033",
+        "type": "CO2",
+        "unit": "ppm",
+        "location": {
+          "lat": 35.6896,
+          "long": 139.6916,
+          "altitude": 5.1
+        },
+        "readings": [
+          { "ts": "2025-06-26T11:59:00Z", "value": 400 },
+          { "ts": "2025-06-26T12:00:00Z", "value": 850 }
+        ],
+        "status": "alert"
+      }
+    ],
+    "alerts": [
+      {
+        "sensor_id": "co2-033",
+        "severity": "high",
+        "message": "CO2 level exceeded 800 ppm threshold",
+        "detected_at": "2025-06-26T12:00:10Z"
+      }
+    ]
+  },
+  {
+    "network_id": "iot-farm-field",
+    "timestamp": "2025-06-26T06:00:00Z",
+    "location": {
+      "site": "AgroResearch Center",
+      "zone": "Field A",
+      "region": "Kathmandu Valley"
+    },
+    "sensors": [
+      {
+        "id": "soil-222",
+        "type": "soil_moisture",
+        "unit": "%",
+        "location": {
+          "lat": 27.7172,
+          "long": 85.3240,
+          "altitude": 4.2
+        },
+        "readings": [
+          { "ts": "2025-06-26T05:59:00Z", "value": 38.2 },
+          { "ts": "2025-06-26T06:00:00Z", "value": 37.9 }
+        ],
+        "status": "active"
+      },
+      {
+        "id": "sun-001",
+        "type": "sunlight",
+        "unit": "lux",
+        "location": {
+          "lat": 27.7173,
+          "long": 85.3241,
+          "altitude": 4.4
+        },
+        "readings": [
+          { "ts": "2025-06-26T05:59:00Z", "value": 5000 },
+          { "ts": "2025-06-26T06:00:00Z", "value": 5300 }
+        ],
+        "status": "active"
+      }
+    ],
+    "alerts": []
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "network_id": "iot-network-2025",
+  "timestamp": "2025-06-26T12:00:00Z",
+  "sensors": [
+    {
+      "id": "sensor-001",
+      "type": "temperature",
+      "location": {
+        "lat": 42.361145,
+        "long": -71.057083,
+        "altitude": 12.5
+      },
+      "readings": [
+        { "ts": "2025-06-26T11:59:00Z", "value": 22.5 },
+        { "ts": "2025-06-26T12:00:00Z", "value": 22.7 }
+      ],
+      "status": "active"
+    },
+    {
+      "id": "sensor-002",
+      "type": "humidity",
+      "location": {
+        "lat": 42.361100,
+        "long": -71.058000,
+        "altitude": 12.8
+      },
+      "readings": [
+        { "ts": "2025-06-26T11:59:00Z", "value": 60.2 },
+        { "ts": "2025-06-26T12:00:00Z", "value": 61.1 }
+      ],
+      "status": "inactive"
+    }
+  ],
+  "alerts": [
+    {
+      "sensor_id": "sensor-002",
+      "severity": "warning",
+      "message": "Sensor inactive for 5+ minutes",
+      "detected_at": "2025-06-26T12:01:30Z"
+    }
+  ]
+}
