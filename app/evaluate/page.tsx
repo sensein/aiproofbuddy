@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FaCheck, FaTimes, FaSave, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import fs from 'fs';
@@ -436,99 +436,84 @@ function renderFieldsReadOnly({
         const fieldPath = [...path, key];
         const label = key.replace(/_/g, ' ');
         const style = { marginLeft: level * 20 };
-        const fieldCorrection = (corrections as any)[key];
-        const origValue = (origData as any)[key];
+        // Always use corrections from the entity level if present
+        const fieldCorrection = corrections && typeof corrections === 'object' ? corrections[key] : undefined;
+        const origValue = fieldCorrection !== undefined ? fieldCorrection : (origData as any)[key];
         // Prevent rendering if value is a direct self-reference (avoid runaway recursion)
         if (typeof value === 'object' && value === data) return <></>;
-        // Special handling for 'mentions' field
-        if (key === 'mentions' && typeof value === 'object' && value !== null) {
-          return (
-            <div key={key} style={style} className="mb-2">
-              <div className="fw-bold">mentions:</div>
-              {Object.entries(value).map(([subKey, subVal]) => (
-                <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }}>
-                  <div className="fw-bold">{subKey}:</div>
-                  {Array.isArray(subVal) ? (
-                    <div>
-                      {subVal.map((item, idx) => (
-                        <div key={idx} className="border rounded px-2 py-1 mb-1 bg-light">{item}</div>
-                      ))}
+
+        // If a corrections value exists for this field, always show diff (red/green)
+        if (corrections && Object.keys(corrections).length > 0 && fieldCorrection !== undefined) {
+          // Array handling
+          if (Array.isArray(value) && Array.isArray(fieldCorrection)) {
+            return (
+              <div key={key} style={style} className="mb-2">
+                <div className="fw-bold">{label}:</div>
+                {/* Show removed items (in corrections, not in new) as red strikethrough */}
+                {fieldCorrection.filter(ov => !value.some(item => deepEqual(item, ov))).map((removed, idx) => (
+                  <div key={`removed-${idx}`} className="text-decoration-line-through text-danger">
+                    {renderAnyValue(removed, level + 1)}
+                  </div>
+                ))}
+                {/* Show all current items, highlight if new */}
+                {value.map((item, idx) => (
+                  !fieldCorrection.some(ov => deepEqual(item, ov)) ? (
+                    <div key={`added-${idx}`} className="text-success">
+                      ✓ {renderAnyValue(item, level + 1)}
                     </div>
                   ) : (
-                    <div>{String(subVal)}</div>
-                  )}
+                    <div key={`unchanged-${idx}`}>{renderAnyValue(item, level + 1)}</div>
+                  )
+                ))}
+              </div>
+            );
+          } else if (typeof value === 'object' && value !== null && typeof fieldCorrection === 'object' && fieldCorrection !== null) {
+            // Object: recursively highlight only changed subfields
+            return (
+              <div key={key} style={style} className="mb-2 border-start ps-2">
+                <div className="fw-bold">{label}:</div>
+                {renderFieldsReadOnly({ data: value, origData: origValue, corrections: fieldCorrection, path: fieldPath, level: level + 1, maxDepth })}
+              </div>
+            );
+          } else {
+            // Primitives: show old (red strikethrough) and new (green)
+            if (value !== fieldCorrection) {
+              return (
+                <div key={key} style={style} className="mb-2">
+                  <span className="fw-bold">{label}:</span> <span className="text-decoration-line-through text-danger">{renderAnyValue(fieldCorrection, level + 1)}</span> <span className="text-success ms-2">✓ {renderAnyValue(value, level + 1)}</span>
                 </div>
-              ))}
-            </div>
-          );
+              );
+            } else {
+              // Unchanged
+              return (
+                <div key={key} style={style} className="mb-2">
+                  <span className="fw-bold">{label}:</span> {renderAnyValue(value, level + 1)}
+                </div>
+              );
+            }
+          }
         }
-        // Array handling
+        // If no corrections value, render as plain text (dynamic)
         if (Array.isArray(value)) {
           return (
             <div key={key} style={style} className="mb-2">
               <div className="fw-bold">{label}:</div>
-              {value.map((item: any, idx: number) => (
-                <div key={idx} style={{ marginLeft: 20 }}>
-                  {Array.isArray(fieldCorrection) && fieldCorrection[idx] !== undefined && !deepEqual(item, fieldCorrection[idx]) ? (
-                    // Highlight changed array element
-                    <div>
-                      <span className="text-decoration-line-through text-danger">{JSON.stringify(fieldCorrection[idx])}</span>
-                      <span className="text-success ms-2">&#10003; {JSON.stringify(item)}</span>
-                    </div>
-                  ) : (
-                    typeof item === 'object' && item !== null ? (
-                      renderFieldsReadOnly({ data: item, origData: Array.isArray(origValue) ? origValue[idx] : undefined, corrections: Array.isArray(fieldCorrection) ? fieldCorrection[idx] : {}, path: [...fieldPath, idx], level: level + 2, maxDepth })
-                    ) : (
-                      <div>{item ?? ''}</div>
-                    )
-                  )}
-                </div>
+              {value.map((item, idx) => (
+                <div key={idx}>{renderAnyValue(item, level + 1)}</div>
               ))}
             </div>
           );
         } else if (typeof value === 'object' && value !== null) {
-          // Object: recursively highlight only changed subfields
           return (
             <div key={key} style={style} className="mb-2 border-start ps-2">
               <div className="fw-bold">{label}:</div>
-              {Object.keys(value).map(subKey => {
-                const subValue = value[subKey];
-                const origSubValue = origValue ? (origValue as any)[subKey] : undefined;
-                const correctionSubValue = fieldCorrection ? (fieldCorrection as any)[subKey] : undefined;
-                const subLabel = subKey.replace(/_/g, ' ');
-                // If changed, highlight
-                if (correctionSubValue !== undefined && !deepEqual(subValue, correctionSubValue)) {
-                  return (
-                    <div key={subKey} style={{ marginLeft: (level + 1) * 20 }} className="mb-2">
-                      <span className="fw-bold">{subLabel}:</span> <span className="text-decoration-line-through text-danger">{JSON.stringify(correctionSubValue)}</span> <span className="text-success ms-2">&#10003; {JSON.stringify(subValue)}</span>
-                    </div>
-                  );
-                }
-                // If not changed and is object/array, recurse
-                if (typeof subValue === 'object' && subValue !== null) {
-                  return renderFieldsReadOnly({ data: subValue, origData: origSubValue, corrections: correctionSubValue, path: [...fieldPath, subKey], level: level + 1, maxDepth });
-                }
-                // Not changed, primitive
-                return (
-                  <div key={subKey} style={{ marginLeft: (level + 1) * 20 }} className="mb-2">
-                    <span className="fw-bold">{subLabel}:</span> {String(subValue ?? '')}
-                  </div>
-                );
-              })}
+              {renderFieldsReadOnly({ data: value, origData: origValue, corrections: corrections && typeof corrections === 'object' ? corrections[key] : undefined, path: fieldPath, level: level + 1, maxDepth })}
             </div>
           );
         } else {
-          // Inline correction display for all fields
-          if (fieldCorrection !== undefined && !deepEqual(value, fieldCorrection)) {
-            return (
-              <div key={key} style={style} className="mb-2">
-                <span className="fw-bold">{label}:</span> <span className="text-decoration-line-through text-danger">{String(fieldCorrection)}</span> <span className="text-success ms-2">&#10003; {String(value)}</span>
-              </div>
-            );
-          }
           return (
             <div key={key} style={style} className="mb-2">
-              <span className="fw-bold">{label}:</span> {value ?? ''}
+              <span className="fw-bold">{label}:</span> {renderAnyValue(value, level + 1)}
             </div>
           );
         }
@@ -579,64 +564,86 @@ function renderFields({
     const highlightClass = isChanged ? 'changed-field' : '';
     // Special handling for 'mentions' field
     if (key === 'mentions' && typeof value === 'object' && value !== null) {
+      // Determine if any subfield or item is corrected
+      let mentionsCorrected = false;
+      if (origValue && typeof origValue === 'object') {
+        mentionsCorrected = Object.entries(value).some(([subKey, subVal]) => {
+          const origSubVal = origValue[subKey];
+          if (Array.isArray(subVal) && Array.isArray(origSubVal)) {
+            return subVal.some((item, idx) => item !== origSubVal[idx]);
+          } else {
+            return subVal !== origSubVal;
+          }
+        });
+      }
       return (
-        <div key={key} style={style} className={`mb-2 ${highlightClass}`}>
+        <div key={key} style={style} className={`mb-2 ${highlightClass} ${mentionsCorrected ? 'border border-warning rounded p-2' : ''}`}>
           <label className="form-label fw-bold">mentions:</label>
-          {Object.entries(value).map(([subKey, subVal]) => (
-            <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }}>
-              <div className="fw-bold">{subKey}:</div>
-              {Array.isArray(subVal) ? (
-                <div>
-                  {subVal.map((item, idx) => (
-                    <div key={idx} className="d-flex align-items-center mb-1">
-                      <input
-                        className="form-control me-2"
-                        value={item}
-                        onChange={e => {
-                          const newArr = [...subVal];
-                          newArr[idx] = e.target.value;
-                          const newMentions = { ...value, [subKey]: newArr };
-                          onChange(fieldPath, newMentions);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-outline-danger btn-sm"
-                        onClick={() => {
-                          const newArr = subVal.filter((_, i) => i !== idx);
-                          const newMentions = { ...value, [subKey]: newArr };
-                          onChange(fieldPath, newMentions);
-                        }}
-                        title="Remove"
-                      >
-                        &minus;
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary btn-sm mt-1"
-                    onClick={() => {
-                      const newArr = [...subVal, ''];
-                      const newMentions = { ...value, [subKey]: newArr };
+          {Object.entries(value).map(([subKey, subVal]) => {
+            const origSubVal = origValue ? origValue[subKey] : undefined;
+            const subCorrected = Array.isArray(subVal) && Array.isArray(origSubVal)
+              ? subVal.some((item, idx) => item !== origSubVal[idx])
+              : subVal !== origSubVal;
+            return (
+              <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }} className={subCorrected ? 'bg-warning bg-opacity-25 rounded p-1' : ''}>
+                <div className="fw-bold">{subKey}:</div>
+                {Array.isArray(subVal) ? (
+                  <div>
+                    {subVal.map((item, idx) => {
+                      const origItem = Array.isArray(origSubVal) ? origSubVal[idx] : undefined;
+                      const itemCorrected = item !== origItem;
+                      return (
+                        <div key={idx} className={`d-flex align-items-center mb-1 ${itemCorrected ? 'bg-warning bg-opacity-50 rounded' : ''}`}>
+                          <input
+                            className="form-control me-2"
+                            value={item}
+                            onChange={e => {
+                              const newArr = [...subVal];
+                              newArr[idx] = e.target.value;
+                              const newMentions = { ...value, [subKey]: newArr };
+                              onChange(fieldPath, newMentions);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => {
+                              const newArr = subVal.filter((_, i) => i !== idx);
+                              const newMentions = { ...value, [subKey]: newArr };
+                              onChange(fieldPath, newMentions);
+                            }}
+                            title="Remove"
+                          >
+                            &minus;
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm mt-1"
+                      onClick={() => {
+                        const newArr = [...subVal, ''];
+                        const newMentions = { ...value, [subKey]: newArr };
+                        onChange(fieldPath, newMentions);
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    className="form-control mb-1"
+                    value={String(subVal ?? '')}
+                    onChange={e => {
+                      const newMentions = { ...value, [subKey]: e.target.value };
                       onChange(fieldPath, newMentions);
                     }}
-                  >
-                    + Add
-                  </button>
-                </div>
-              ) : (
-                <input
-                  className="form-control mb-1"
-                  value={String(subVal ?? '')}
-                  onChange={e => {
-                    const newMentions = { ...value, [subKey]: e.target.value };
-                    onChange(fieldPath, newMentions);
-                  }}
-                />
-              )}
-            </div>
-          ))}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -685,6 +692,47 @@ function renderFields({
   });
 }
 
+// Helper to render any value (primitive, array, or object) in a user-friendly, indented, and recursive way
+function renderAnyValue(val: any, level: number = 0): React.ReactNode {
+  if (val == null) return '';
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+    return String(val);
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '[]';
+    // If array of primitives
+    if (val.every(item => typeof item !== 'object' || item == null)) {
+      return (
+        <ul style={{ marginLeft: level * 16, marginBottom: 0 }}>
+          {val.map((item, idx) => <li key={idx}>{renderAnyValue(item, level + 1)}</li>)}
+        </ul>
+      );
+    }
+    // Array of objects
+    return (
+      <div style={{ marginLeft: level * 16 }}>
+        {val.map((item, idx) => (
+          <div key={idx} style={{ marginBottom: 4, borderLeft: '2px solid #eee', paddingLeft: 8 }}>
+            {renderAnyValue(item, level + 1)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (typeof val === 'object') {
+    return (
+      <div style={{ marginLeft: level * 16 }}>
+        {Object.entries(val).map(([k, v]) => (
+          <div key={k} style={{ marginBottom: 2 }}>
+            <span style={{ fontWeight: 500 }}>{k}:</span> {renderAnyValue(v, level + 1)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return String(val);
+}
+
 export default function EvaluatePage() {
   const searchParams = useSearchParams();
   const filePath = searchParams.get('file');
@@ -710,6 +758,8 @@ export default function EvaluatePage() {
     idx: number;
     allFields: Set<string>;
   }>>([]);
+  const [resetKey, setResetKey] = useState(0); // force remount to reset state
+  const prevFilePath = useRef<string | null>(null);
 
   const getEvalPath = (filePath: string) => filePath.endsWith('_eval.json') ? filePath : filePath.replace('.json', '_eval.json');
 
@@ -945,15 +995,28 @@ export default function EvaluatePage() {
   }, new Set<string>());
 
   const handleFieldChange = (candidatePath: string, entityId: string, index: number, field: string, value: any) => {
-    setEvaluations(prev => ({
-      ...prev,
-      [candidatePath]: {
-        ...prev[candidatePath],
-        [entityId]: prev[candidatePath][entityId].map((entity, i) =>
-          i === index ? { ...entity, [field]: value } : entity
-        ),
-      },
-    }));
+    setEvaluations(prev => {
+      const newEvals = { ...prev };
+      if (!newEvals[candidatePath]) newEvals[candidatePath] = {};
+      const entitiesRaw = newEvals[candidatePath][entityId];
+      const entities = Array.isArray(entitiesRaw) ? entitiesRaw : [];
+      const entity = { ...entities[index] };
+      // Ensure corrections object exists
+      if (!entity.corrections) entity.corrections = {};
+      // Store original value if not already present
+      if (!(field in entity.corrections)) {
+        entity.corrections[field] = entity[field];
+      }
+      // Update the field value
+      entity[field] = value;
+      // Mark as corrected
+      entity.corrected = true;
+      // Update the array
+      const updatedEntities = [...entities];
+      updatedEntities[index] = entity;
+      newEvals[candidatePath][entityId] = updatedEntities;
+      return newEvals;
+    });
     setCorrections(prev => ({
       ...prev,
       [entityId]: { ...(prev[entityId] || {}), [field]: true },
@@ -1105,6 +1168,14 @@ export default function EvaluatePage() {
 
       if (!response.ok) throw new Error('Failed to save evaluation');
       alert('Evaluation saved successfully');
+      // After save, if still viewing original file, reset state so no diffs are shown
+      if (!filePath.endsWith('_eval.json')) {
+        setEvaluations({});
+        setCorrections({});
+        setEditMode({});
+        setOriginalValues({});
+        setResetKey(k => k + 1);
+      }
       window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save evaluation');
@@ -1201,6 +1272,19 @@ export default function EvaluatePage() {
     return rest;
   };
 
+  // In EvaluatePage, add a useEffect to reset evaluation state (including corrections) when switching files or after saving
+  useEffect(() => {
+    // If filePath changes, reset evaluation state
+    if (prevFilePath.current !== filePath) {
+      setEvaluations({});
+      setCorrections({});
+      setEditMode({});
+      setOriginalValues({});
+      setResetKey(k => k + 1);
+      prevFilePath.current = filePath;
+    }
+  }, [filePath]);
+
   if (loading) return (
     <div className="container">
       <div className="text-center">
@@ -1227,7 +1311,7 @@ export default function EvaluatePage() {
   )
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid" key={resetKey}>
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
           <h2 className="mb-0">Evaluate: {filePath}</h2>
@@ -1295,9 +1379,12 @@ export default function EvaluatePage() {
                   orig = originalValues[entityId];
                 }
 
+                // Use the current entity from evaluations state for rendering (live edits)
+                const currentEntity = evalInfo && Object.keys(evalInfo).length > 0 ? evalInfo : entity;
+
                 return (
                   <div key={`${candidatePath}-${entityId}-${idx}`} className="col-lg-4 col-md-6 col-12" id={`entity-row-${entityId}`}> 
-                    <div className={`card h-100 ${isCorrected || isApprovedWithStartEnd ? 'border-warning' : ''}`}> 
+                    <div className={`card h-100 ${status === 'corrected' ? 'border-warning' : ''}`}> 
                       <div className="card-header d-flex justify-content-between align-items-center"> 
                         <div>
                           <h5 className="mb-0">Entity #{idx + 1}</h5>
@@ -1334,9 +1421,9 @@ export default function EvaluatePage() {
                       </div>
                       <div className="card-body">
                         {renderFieldsReadOnly({
-                          data: Object.fromEntries([...allFields].map(f => [f, entity[f]])),
+                          data: Object.fromEntries([...allFields].map(f => [f, currentEntity[f]])),
                           origData: orig,
-                          corrections: evalInfo.corrections || {},
+                          corrections: currentEntity.corrections || {},
                         })}
                       </div>
                     </div>
