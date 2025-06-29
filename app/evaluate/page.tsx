@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FaCheck, FaTimes, FaSave, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import fs from 'fs';
@@ -440,6 +440,28 @@ function renderFieldsReadOnly({
         const origValue = (origData as any)[key];
         // Prevent rendering if value is a direct self-reference (avoid runaway recursion)
         if (typeof value === 'object' && value === data) return <></>;
+        // Special handling for 'mentions' field
+        if (key === 'mentions' && typeof value === 'object' && value !== null) {
+          return (
+            <div key={key} style={style} className="mb-2">
+              <div className="fw-bold">mentions:</div>
+              {Object.entries(value).map(([subKey, subVal]) => (
+                <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }}>
+                  <div className="fw-bold">{subKey}:</div>
+                  {Array.isArray(subVal) ? (
+                    <div>
+                      {subVal.map((item, idx) => (
+                        <div key={idx} className="border rounded px-2 py-1 mb-1 bg-light">{item}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div>{String(subVal)}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        }
         // Array handling
         if (Array.isArray(value)) {
           return (
@@ -555,6 +577,35 @@ function renderFields({
     const origValue = origData ? origData[key] : undefined;
     const isChanged = JSON.stringify(value) !== JSON.stringify(origValue);
     const highlightClass = isChanged ? 'changed-field' : '';
+    // Special handling for 'mentions' field
+    if (key === 'mentions' && typeof value === 'object' && value !== null) {
+      return (
+        <div key={key} style={style} className={`mb-2 ${highlightClass}`}>
+          <label className="form-label fw-bold">mentions:</label>
+          {Object.entries(value).map(([subKey, subVal]) => (
+            <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }}>
+              <div className="fw-bold">{subKey}:</div>
+              {Array.isArray(subVal) ? (
+                <div>
+                  {subVal.map((item, idx) => (
+                    <div key={idx} className="border rounded px-2 py-1 mb-1 bg-light">{item}</div>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  className="form-control mb-1"
+                  value={String(subVal ?? '')}
+                  onChange={e => {
+                    const newMentions = { ...value, [subKey]: e.target.value };
+                    onChange(fieldPath, newMentions);
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
     if (Array.isArray(value)) {
       return (
         <div key={key} style={style} className={`mb-2 ${highlightClass}`}>
@@ -618,6 +669,13 @@ export default function EvaluatePage() {
   const [modalEntityId, setModalEntityId] = useState<string | null>(null);
   const [modalEntityIndex, setModalEntityIndex] = useState<number>(0);
   const [modalCandidatePath, setModalCandidatePath] = useState<string | null>(null);
+  const [entityList, setEntityList] = useState<Array<{
+    entity: Entity;
+    entityId: string;
+    candidatePath: string;
+    idx: number;
+    allFields: Set<string>;
+  }>>([]);
 
   const getEvalPath = (filePath: string) => filePath.endsWith('_eval.json') ? filePath : filePath.replace('.json', '_eval.json');
 
@@ -804,6 +862,47 @@ export default function EvaluatePage() {
       .then(res => setHasEvalFile(res.ok))
       .catch(() => setHasEvalFile(false));
   }, [filePath]);
+
+  // On file load, extract and normalize entities from the original data
+  useEffect(() => {
+    if (!data || !structureAnalysis) return;
+    const newEntityList: Array<{
+      entity: Entity;
+      entityId: string;
+      candidatePath: string;
+      idx: number;
+      allFields: Set<string>;
+    }> = [];
+    if (structureAnalysis.entityCandidates.length > 0) {
+      structureAnalysis.entityCandidates.forEach(candidate => {
+        const candidateData = candidate.data;
+        const normalizedData = universalNormalizeData(candidateData);
+        const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
+          Object.keys(entity).forEach(f => fields.add(f));
+          return fields;
+        }, new Set<string>());
+        Object.entries(normalizedData).forEach(([entityId, entities]) => {
+          if (!Array.isArray(entities)) return;
+          (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
+            newEntityList.push({ entity, entityId, candidatePath: candidate.path, idx, allFields });
+          });
+        });
+      });
+    } else {
+      const normalizedData = universalNormalizeData(data);
+      const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
+        Object.keys(entity).forEach(f => fields.add(f));
+        return fields;
+      }, new Set<string>());
+      Object.entries(normalizedData).forEach(([entityId, entities]) => {
+        if (!Array.isArray(entities)) return;
+        (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
+          newEntityList.push({ entity, entityId, candidatePath: 'root', idx, allFields });
+        });
+      });
+    }
+    setEntityList(newEntityList);
+  }, [data, structureAnalysis]);
 
   // Helper to get all unique fields from all entities
   const allFields = Object.values(evaluations['root'] || {}).flat().reduce((fields, entity) => {
@@ -1068,59 +1167,6 @@ export default function EvaluatePage() {
     return rest;
   };
 
-  // Build the list of entities to display from the original data, not from the evaluation state
-  const allEntityCards: Array<{
-    entity: Entity;
-    entityId: string;
-    candidatePath: string;
-    idx: number;
-    allFields: Set<string>;
-    evalInfo: Partial<Entity>;
-  }> = [];
-
-  if (structureAnalysis && structureAnalysis.entityCandidates.length > 0) {
-    structureAnalysis.entityCandidates.forEach(candidate => {
-      // Always extract from the original data
-      const candidateData = candidate.data;
-      const normalizedData = universalNormalizeData(candidateData);
-      const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
-        Object.keys(entity).forEach(f => fields.add(f));
-        return fields;
-      }, new Set<string>());
-      Object.entries(normalizedData).forEach(([entityId, entities]) => {
-        if (!Array.isArray(entities)) return;
-        (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
-          // Merge in evaluation info if present
-          let evalInfo: Partial<Entity> = {};
-          const evalSection = evaluations[candidate.path];
-          if (evalSection && Array.isArray(evalSection[entityId])) {
-            evalInfo = (evalSection[entityId] as Array<Entity>)[idx] || {};
-          }
-          allEntityCards.push({ entity, entityId, candidatePath: candidate.path, idx, allFields, evalInfo });
-        });
-      });
-    });
-  }
-  // Fallback: add root entities if no candidates
-  if (allEntityCards.length === 0 && data) {
-    const normalizedData = universalNormalizeData(data);
-    const allFields = Object.values(normalizedData).flat().reduce((fields, entity: Entity) => {
-      Object.keys(entity).forEach(f => fields.add(f));
-      return fields;
-    }, new Set<string>());
-    Object.entries(normalizedData).forEach(([entityId, entities]) => {
-      if (!Array.isArray(entities)) return;
-      (entities as Array<Entity>).forEach((entity: Entity, idx: number) => {
-        let evalInfo: Partial<Entity> = {};
-        const evalSection = evaluations['root'];
-        if (evalSection && Array.isArray(evalSection[entityId])) {
-          evalInfo = (evalSection[entityId] as Array<Entity>)[idx] || {};
-        }
-        allEntityCards.push({ entity, entityId, candidatePath: 'root', idx, allFields, evalInfo });
-      });
-    });
-  }
-
   if (loading) return (
     <div className="container">
       <div className="text-center">
@@ -1174,7 +1220,13 @@ export default function EvaluatePage() {
         <div className="card-body">
           <div className="table-responsive w-100">
             <div className="row g-4">
-              {allEntityCards.map(({ entity, entityId, candidatePath, idx, allFields, evalInfo }) => {
+              {entityList.map(({ entity, entityId, candidatePath, idx, allFields }) => {
+                // Merge in evaluation info if present
+                let evalInfo: Partial<Entity> = {};
+                const evalSection = evaluations[candidatePath];
+                if (evalSection && Array.isArray(evalSection[entityId])) {
+                  evalInfo = (evalSection[entityId] as Array<Entity>)[idx] || {};
+                }
                 let status: 'pending' | 'approved' | 'corrected' = 'pending';
                 if (evalInfo.approved === true) status = 'approved';
                 else if (evalInfo.approved === false || evalInfo.corrected === true) status = 'corrected';
@@ -1250,7 +1302,7 @@ export default function EvaluatePage() {
                         {renderFieldsReadOnly({
                           data: Object.fromEntries([...allFields].map(f => [f, entity[f]])),
                           origData: orig,
-                          corrections: entity.corrections || {},
+                          corrections: evalInfo.corrections || {},
                         })}
                       </div>
                     </div>
