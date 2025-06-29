@@ -1213,13 +1213,11 @@ export default function EvaluatePage() {
 
       if (!response.ok) throw new Error('Failed to save evaluation');
       alert('Evaluation saved successfully');
-      // After save, if still viewing original file, reset state so no diffs are shown
+      // After save, if still viewing original file, redirect to _eval.json view
       if (!filePath.endsWith('_eval.json')) {
-        setEvaluations({});
-        setCorrections({});
-        setEditMode({});
-        setOriginalValues({});
-        setResetKey(k => k + 1);
+        const evalPath = getEvalPath(filePath);
+        window.location.href = `?file=${encodeURIComponent(evalPath)}`;
+        return;
       }
       window.location.reload();
     } catch (err) {
