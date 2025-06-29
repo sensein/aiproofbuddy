@@ -418,6 +418,7 @@ function renderFieldsReadOnly({
   path = [],
   level = 0,
   maxDepth = MAX_RENDER_DEPTH,
+  corrected = false
 }: {
   data: Record<string, any>;
   origData?: Record<string, any>;
@@ -425,115 +426,213 @@ function renderFieldsReadOnly({
   path?: (string | number)[];
   level?: number;
   maxDepth?: number;
+  corrected?: boolean;
 }): React.ReactNode {
   if (typeof data !== 'object' || data === null || level > maxDepth) {
     return <></>;
   }
-  return (
-    <>
-      {Object.entries(data).map(([key, value]) => {
-        if (key === 'corrections') return <></>; // Do not render corrections block in card
-        const fieldPath = [...path, key];
-        const label = key.replace(/_/g, ' ');
-        const style = { marginLeft: level * 20 };
-        // Always use corrections from the entity level if present
-        const fieldCorrection = corrections && typeof corrections === 'object' ? corrections[key] : undefined;
-        const origValue = fieldCorrection !== undefined ? fieldCorrection : (origData as any)[key];
-        // Prevent rendering if value is a direct self-reference (avoid runaway recursion)
-        if (typeof value === 'object' && value === data) return <></>;
+  // Determine if we should highlight: only if corrected is true or corrections is non-empty
+  const shouldHighlight = corrected || (corrections && typeof corrections === 'object' && Object.keys(corrections).length > 0);
 
-        // If a corrections value exists for this field, always show diff (red/green)
-        if (corrections && Object.keys(corrections).length > 0 && fieldCorrection !== undefined) {
-          // Array handling
-          if (Array.isArray(value) && Array.isArray(fieldCorrection)) {
+  if (Array.isArray(data)) {
+    // Arrays of primitives: render as <ul> with diff/highlight logic, no index labels
+    if (data.every(item => typeof item !== 'object' || item === null)) {
+      const corrArr = Array.isArray(corrections) ? corrections : [];
+      return (
+        <ul style={{ marginLeft: level * 20, marginBottom: 0 }}>
+          {data.map((item, idx) => {
+            const corrItem = corrArr[idx];
+            if (shouldHighlight && corrItem !== undefined && corrItem !== '__added__') {
+              // Changed item - show original value in red, new value in green
+              return (
+                <li key={idx}>
+                  <span className="text-decoration-line-through text-danger">❌ {renderAnyValue(corrItem, level + 1)}</span>
+                  <span className="text-success ms-2">✓ {renderAnyValue(item, level + 1)}</span>
+                </li>
+              );
+            } else if (shouldHighlight && corrItem === '__added__') {
+              // Added item - show in green
+              return <li key={idx} className="text-success">✓ {renderAnyValue(item, level + 1)}</li>;
+            } else {
+              // Default (no highlight) - unchanged or not in corrections
+              return <li key={idx}>{renderAnyValue(item, level + 1)}</li>;
+            }
+          })}
+          {/* Show removed items (in corrections but not in new data) as red strikethrough */}
+          {shouldHighlight && corrArr.map((corrItem, idx) => {
+            if (corrItem !== undefined && corrItem !== '__added__' && (idx >= data.length || !deepEqual(data[idx], corrItem))) {
+              return <li key={`removed-${idx}`} className="text-decoration-line-through text-danger">❌ {renderAnyValue(corrItem, level + 1)}</li>;
+            }
+            return null;
+          })}
+        </ul>
+      );
+    }
+    // Arrays of objects: recursively call renderFieldsReadOnly for each object
+    const corrArr = Array.isArray(corrections) ? corrections : [];
+    return (
+      <div style={{ marginLeft: level * 20, marginBottom: 8 }}>
+        {data.map((item, idx) => (
+          <div key={idx}>
+            {renderFieldsReadOnly({
+              data: item,
+              origData: origData ? origData[idx] : undefined,
+              corrections: corrArr[idx],
+              path: [...path, idx],
+              level: level + 1,
+              maxDepth,
+              corrected: shouldHighlight
+            })}
+          </div>
+        ))}
+        {/* Show removed objects (in corrections, not in new) as red strikethrough */}
+        {shouldHighlight && corrArr.map((corrObj, idx) => {
+          if (!data[idx] || !deepEqual(data[idx], corrObj)) {
             return (
-              <div key={key} style={style} className="mb-2">
-                <div className="fw-bold">{label}:</div>
-                {/* Show removed items (in corrections, not in new) as red strikethrough */}
-                {fieldCorrection.filter(ov => !value.some(item => deepEqual(item, ov))).map((removed, idx) => (
-                  <div key={`removed-${idx}`} className="text-decoration-line-through text-danger">
-                    {renderAnyValue(removed, level + 1)}
-                  </div>
-                ))}
-                {/* Show all current items, highlight if new */}
-                {value.map((item, idx) => (
-                  !fieldCorrection.some(ov => deepEqual(item, ov)) ? (
-                    <div key={`added-${idx}`} className="text-success">
-                      ✓ {renderAnyValue(item, level + 1)}
-                    </div>
-                  ) : (
-                    <div key={`unchanged-${idx}`}>{renderAnyValue(item, level + 1)}</div>
-                  )
-                ))}
+              <div key={`removed-${idx}`} className="text-decoration-line-through text-danger" style={{ borderLeft: '2px solid #eee', paddingLeft: 8 }}>
+                {renderAnyValue(corrObj, level + 1)}
               </div>
             );
-          } else if (typeof value === 'object' && value !== null && typeof fieldCorrection === 'object' && fieldCorrection !== null) {
-            // Object: recursively highlight only changed subfields
+          }
+          return null;
+        })}
+      </div>
+    );
+  }
+  if (typeof data === 'object' && data !== null) {
+    // For objects, use the union of keys from both the new and correction object, and recursively apply the diff logic for all subfields
+    const allSubKeys = new Set([
+      ...Object.keys(data),
+      ...(corrections ? Object.keys(corrections) : [])
+    ]);
+    return (
+      <div style={{ marginLeft: level * 20 }}>
+        {[...allSubKeys].map(subKey => {
+          const subVal = data[subKey];
+          const subCorr = corrections ? corrections[subKey] : undefined;
+          if (Array.isArray(subVal)) {
+            // Recursively handle arrays (primitives or objects)
             return (
-              <div key={key} style={style} className="mb-2 border-start ps-2">
-                <div className="fw-bold">{label}:</div>
-                {renderFieldsReadOnly({ data: value, origData: origValue, corrections: fieldCorrection, path: fieldPath, level: level + 1, maxDepth })}
+              <div key={subKey} className="mb-1">
+                <span className="fw-bold">{subKey}:</span>
+                {renderFieldsReadOnly({
+                  data: subVal,
+                  origData: origData ? origData[subKey] : undefined,
+                  corrections: subCorr,
+                  path: [...path, subKey],
+                  level: level + 1,
+                  maxDepth,
+                  corrected: shouldHighlight
+                })}
+              </div>
+            );
+          } else if (typeof subVal === 'object' && subVal !== null) {
+            // Recursively handle nested objects
+            return (
+              <div key={subKey} className="mb-1">
+                <span className="fw-bold">{subKey}:</span>
+                {renderFieldsReadOnly({
+                  data: subVal,
+                  origData: origData ? origData[subKey] : undefined,
+                  corrections: subCorr,
+                  path: [...path, subKey],
+                  level: level + 1,
+                  maxDepth,
+                  corrected: shouldHighlight
+                })}
+              </div>
+            );
+          } else if (shouldHighlight && subCorr !== undefined && !deepEqual(subVal, subCorr)) {
+            // Only highlight if present in corrections and changed
+            return (
+              <div key={subKey} className="mb-1">
+                <span className="fw-bold">{subKey}:</span>
+                <span className="text-decoration-line-through text-danger ms-2">❌ {renderAnyValue(subCorr, level + 2)}</span>
+                <span className="text-success ms-2">✓ {renderAnyValue(subVal, level + 2)}</span>
+              </div>
+            );
+          } else if (shouldHighlight && subCorr !== undefined && deepEqual(subVal, subCorr)) {
+            // Unchanged but present in corrections
+            return (
+              <div key={subKey} className="mb-1">
+                <span className="fw-bold">{subKey}:</span> {renderAnyValue(subVal, level + 2)}
               </div>
             );
           } else {
-            // Primitives: show old (red strikethrough) and new (green)
-            if (value !== fieldCorrection) {
-              return (
-                <div key={key} style={style} className="mb-2">
-                  <span className="fw-bold">{label}:</span> <span className="text-decoration-line-through text-danger">{renderAnyValue(fieldCorrection, level + 1)}</span> <span className="text-success ms-2">✓ {renderAnyValue(value, level + 1)}</span>
-                </div>
-              );
-            } else {
-              // Unchanged
-              return (
-                <div key={key} style={style} className="mb-2">
-                  <span className="fw-bold">{label}:</span> {renderAnyValue(value, level + 1)}
-                </div>
-              );
-            }
+            // Default (no highlight)
+            return (
+              <div key={subKey} className="mb-1">
+                <span className="fw-bold">{subKey}:</span> {renderAnyValue(subVal, level + 2)}
+              </div>
+            );
           }
-        }
-        // If no corrections value, render as plain text (dynamic)
-        if (Array.isArray(value)) {
-          return (
-            <div key={key} style={style} className="mb-2">
-              <div className="fw-bold">{label}:</div>
-              {value.map((item, idx) => (
-                <div key={idx}>{renderAnyValue(item, level + 1)}</div>
-              ))}
-            </div>
-          );
-        } else if (typeof value === 'object' && value !== null) {
-          return (
-            <div key={key} style={style} className="mb-2 border-start ps-2">
-              <div className="fw-bold">{label}:</div>
-              {renderFieldsReadOnly({ data: value, origData: origValue, corrections: corrections && typeof corrections === 'object' ? corrections[key] : undefined, path: fieldPath, level: level + 1, maxDepth })}
-            </div>
-          );
-        } else {
-          return (
-            <div key={key} style={style} className="mb-2">
-              <span className="fw-bold">{label}:</span> {renderAnyValue(value, level + 1)}
-            </div>
-          );
-        }
-      })}
-    </>
-  );
+        })}
+      </div>
+    );
+  }
+  // For primitives
+  if (shouldHighlight && corrections !== undefined && !deepEqual(data, corrections)) {
+    return (
+      <div className="mb-2">
+        <span className="fw-bold">{path.join('.')}:</span> <span className="text-decoration-line-through text-danger">{renderAnyValue(corrections, level + 1)}</span> <span className="text-success ms-2">✓ {renderAnyValue(data, level + 1)}</span>
+      </div>
+    );
+  } else {
+    // Unchanged
+    return (
+      <div className="mb-2">
+        <span className="fw-bold">{path.join('.')}:</span> {renderAnyValue(data, level + 1)}
+      </div>
+    );
+  }
 }
 
-function getChangedFields(newVal: any, origVal: any): any {
+// Refactor getChangedFieldsMinimal to be fully recursive and dynamic for all fields, including arrays of primitives inside objects, at any depth
+function getChangedFieldsMinimal(newVal: any, origVal: any): any {
   if (deepEqual(newVal, origVal)) return undefined;
   if (typeof newVal !== 'object' || newVal === null) return origVal;
   if (Array.isArray(newVal)) {
-    // Only return changed indices, keep undefined for unchanged
-    return newVal.map((item: any, idx: number) => getChangedFields(item, origVal ? origVal[idx] : undefined));
+    if (!Array.isArray(origVal)) return origVal;
+    // For arrays of primitives
+    if (newVal.every(item => typeof item !== 'object' || item === null) && 
+        origVal.every(item => typeof item !== 'object' || item === null)) {
+      // Build a diff array for primitives
+      const maxLen = Math.max(newVal.length, origVal.length);
+      const diffArr = [];
+      let hasDiff = false;
+      for (let i = 0; i < maxLen; i++) {
+        if (!deepEqual(newVal[i], origVal[i])) {
+          hasDiff = true;
+          if (origVal[i] === undefined) {
+            // Added item: store the new value
+            diffArr[i] = newVal[i];
+          } else if (newVal[i] === undefined) {
+            // Removed item: store the original value
+            diffArr[i] = origVal[i];
+          } else {
+            // Changed item: store the original value
+            diffArr[i] = origVal[i];
+          }
+        } else {
+          diffArr[i] = undefined; // unchanged
+        }
+      }
+      return hasDiff ? diffArr : undefined;
+    }
+    // For arrays of objects, recurse per item
+    const arr = newVal.map((item, idx) => getChangedFieldsMinimal(item, origVal[idx]));
+    if (arr.every((x: any) => x === undefined)) return undefined;
+    return arr;
   }
   // For objects, only keep changed keys
   const changed: Record<string, any> = {};
-  Object.keys(newVal).forEach(key => {
-    const subChange = getChangedFields(newVal[key], origVal ? origVal[key] : undefined);
-    if (subChange !== undefined) changed[key] = origVal ? origVal[key] : undefined;
+  const allKeys = new Set([
+    ...Object.keys(newVal || {}),
+    ...Object.keys(origVal || {})
+  ]);
+  allKeys.forEach(key => {
+    const subChange = getChangedFieldsMinimal(newVal[key], origVal ? origVal[key] : undefined);
+    if (subChange !== undefined) changed[key] = subChange;
   });
   return Object.keys(changed).length > 0 ? changed : undefined;
 }
@@ -555,119 +654,62 @@ function renderFields({
   if (typeof data !== 'object' || data === null) {
     return null;
   }
-  return Object.entries(data).map(([key, value]) => {
-    const fieldPath = [...path, key];
-    const label = key.replace(/_/g, ' ');
-    const style = { marginLeft: level * 20 };
-    const origValue = origData ? origData[key] : undefined;
-    const isChanged = JSON.stringify(value) !== JSON.stringify(origValue);
-    const highlightClass = isChanged ? 'changed-field' : '';
-    // Special handling for 'mentions' field
-    if (key === 'mentions' && typeof value === 'object' && value !== null) {
-      // Determine if any subfield or item is corrected
-      let mentionsCorrected = false;
-      if (origValue && typeof origValue === 'object') {
-        mentionsCorrected = Object.entries(value).some(([subKey, subVal]) => {
-          const origSubVal = origValue[subKey];
-          if (Array.isArray(subVal) && Array.isArray(origSubVal)) {
-            return subVal.some((item, idx) => item !== origSubVal[idx]);
-          } else {
-            return subVal !== origSubVal;
-          }
-        });
-      }
+  // Use the union of keys from data and origData to ensure all fields are rendered
+  const allKeys = new Set([
+    ...Object.keys(data || {}),
+    ...Object.keys(origData || {})
+  ]);
+  // If this is an array, render each item as a group, not as a field named '0', '1', etc.
+  if (Array.isArray(data)) {
+    // If array is empty, render a placeholder input
+    if (data.length === 0) {
       return (
-        <div key={key} style={style} className={`mb-2 ${highlightClass} ${mentionsCorrected ? 'border border-warning rounded p-2' : ''}`}>
-          <label className="form-label fw-bold">mentions:</label>
-          {Object.entries(value).map(([subKey, subVal]) => {
-            const origSubVal = origValue ? origValue[subKey] : undefined;
-            const subCorrected = Array.isArray(subVal) && Array.isArray(origSubVal)
-              ? subVal.some((item, idx) => item !== origSubVal[idx])
-              : subVal !== origSubVal;
-            return (
-              <div key={subKey} style={{ marginLeft: 20, marginBottom: 8 }} className={subCorrected ? 'bg-warning bg-opacity-25 rounded p-1' : ''}>
-                <div className="fw-bold">{subKey}:</div>
-                {Array.isArray(subVal) ? (
-                  <div>
-                    {subVal.map((item, idx) => {
-                      const origItem = Array.isArray(origSubVal) ? origSubVal[idx] : undefined;
-                      const itemCorrected = item !== origItem;
-                      return (
-                        <div key={idx} className={`d-flex align-items-center mb-1 ${itemCorrected ? 'bg-warning bg-opacity-50 rounded' : ''}`}>
-                          <input
-                            className="form-control me-2"
-                            value={item}
-                            onChange={e => {
-                              const newArr = [...subVal];
-                              newArr[idx] = e.target.value;
-                              const newMentions = { ...value, [subKey]: newArr };
-                              onChange(fieldPath, newMentions);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => {
-                              const newArr = subVal.filter((_, i) => i !== idx);
-                              const newMentions = { ...value, [subKey]: newArr };
-                              onChange(fieldPath, newMentions);
-                            }}
-                            title="Remove"
-                          >
-                            &minus;
-                          </button>
-                        </div>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary btn-sm mt-1"
-                      onClick={() => {
-                        const newArr = [...subVal, ''];
-                        const newMentions = { ...value, [subKey]: newArr };
-                        onChange(fieldPath, newMentions);
-                      }}
-                    >
-                      + Add
-                    </button>
-                  </div>
-                ) : (
-                  <input
-                    className="form-control mb-1"
-                    value={String(subVal ?? '')}
-                    onChange={e => {
-                      const newMentions = { ...value, [subKey]: e.target.value };
-                      onChange(fieldPath, newMentions);
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
+        <div style={{ marginLeft: level * 20, marginBottom: 8 }}>
+          <input
+            className="form-control mb-1"
+            value={''}
+            placeholder="Add item..."
+            onChange={e => {
+              const arr = [e.target.value];
+              onChange(path, arr);
+            }}
+          />
         </div>
       );
     }
+    return data.map((item, idx) => (
+      <div key={idx} style={{ marginLeft: level * 20, marginBottom: 8 }}>
+        {typeof item === 'object' && item !== null ? (
+          renderFields({ data: item, origData: origData ? origData[idx] : undefined, path: [...path, idx], onChange, level: level + 1 })
+        ) : (
+          <input
+            className="form-control mb-1"
+            value={item ?? ''}
+            onChange={e => {
+              const arr = [...data];
+              arr[idx] = e.target.value;
+              onChange(path, arr);
+            }}
+          />
+        )}
+      </div>
+    ));
+  }
+  // Otherwise, render as before
+  return [...allKeys].map(key => {
+    const fieldPath = [...path, key];
+    const label = key.replace(/_/g, ' ');
+    const style = { marginLeft: level * 20 };
+    const value = data ? data[key] : undefined;
+    const origValue = origData ? origData[key] : undefined;
+    const isChanged = JSON.stringify(value) !== JSON.stringify(origValue);
+    const highlightClass = isChanged ? 'changed-field' : '';
     if (Array.isArray(value)) {
+      // Always render array editor, even if empty
       return (
         <div key={key} style={style} className={`mb-2 ${highlightClass}`}>
           <label className="form-label fw-bold">{label}:</label>
-          {value.map((item: any, idx: number) => (
-            <div key={idx} style={{ marginLeft: 20 }}>
-              {typeof item === 'object' && item !== null ? (
-                renderFields({ data: item, origData: origValue, path: [...fieldPath, idx], onChange, level: level + 2 })
-              ) : (
-                <input
-                  className="form-control mb-1"
-                  value={String(item ?? '')}
-                  onChange={e => {
-                    const arr = [...value];
-                    arr[idx] = e.target.value;
-                    onChange(fieldPath, arr);
-                  }}
-                />
-              )}
-            </div>
-          ))}
+          {renderFields({ data: value, origData: origValue, path: fieldPath, onChange, level: level + 1 })}
         </div>
       );
     } else if (typeof value === 'object' && value !== null) {
@@ -683,7 +725,7 @@ function renderFields({
           <label className="form-label fw-bold">{label}:</label>
           <input
             className="form-control"
-            value={String(value ?? '')}
+            value={value ?? ''}
             onChange={e => onChange(fieldPath, e.target.value)}
           />
         </div>
@@ -760,6 +802,7 @@ export default function EvaluatePage() {
   }>>([]);
   const [resetKey, setResetKey] = useState(0); // force remount to reset state
   const prevFilePath = useRef<string | null>(null);
+  const [modalEditEntity, setModalEditEntity] = useState<any>(null);
 
   const getEvalPath = (filePath: string) => filePath.endsWith('_eval.json') ? filePath : filePath.replace('.json', '_eval.json');
 
@@ -994,7 +1037,7 @@ export default function EvaluatePage() {
     return fields;
   }, new Set<string>());
 
-  const handleFieldChange = (candidatePath: string, entityId: string, index: number, field: string, value: any) => {
+  const handleFieldChange = (candidatePath: string, entityId: string, index: number, fieldPath: (string | number)[], value: any) => {
     setEvaluations(prev => {
       const newEvals = { ...prev };
       if (!newEvals[candidatePath]) newEvals[candidatePath] = {};
@@ -1003,23 +1046,25 @@ export default function EvaluatePage() {
       const entity = { ...entities[index] };
       // Ensure corrections object exists
       if (!entity.corrections) entity.corrections = {};
-      // Store original value if not already present
-      if (!(field in entity.corrections)) {
-        entity.corrections[field] = entity[field];
+      // Store original value at the correct nested path if not already present (only the specific subfield)
+      const origVal = getNestedValue(entity, fieldPath);
+      const corrVal = getNestedValue(entity.corrections, fieldPath);
+      if (corrVal === undefined) {
+        entity.corrections = setNestedValue(entity.corrections, fieldPath, origVal);
       }
-      // Update the field value
-      entity[field] = value;
-      // Mark as corrected
-      entity.corrected = true;
+      // Update the field value at the correct nested path
+      const updatedEntity = setNestedValue(entity, fieldPath, value);
+      updatedEntity.corrections = entity.corrections;
+      updatedEntity.corrected = true;
       // Update the array
       const updatedEntities = [...entities];
-      updatedEntities[index] = entity;
+      updatedEntities[index] = updatedEntity;
       newEvals[candidatePath][entityId] = updatedEntities;
       return newEvals;
     });
     setCorrections(prev => ({
       ...prev,
-      [entityId]: { ...(prev[entityId] || {}), [field]: true },
+      [entityId]: { ...(prev[entityId] || {}), [fieldPath.join('.')]: true },
     }));
   };
 
@@ -1168,13 +1213,11 @@ export default function EvaluatePage() {
 
       if (!response.ok) throw new Error('Failed to save evaluation');
       alert('Evaluation saved successfully');
-      // After save, if still viewing original file, reset state so no diffs are shown
+      // After save, if still viewing original file, redirect to _eval.json view
       if (!filePath.endsWith('_eval.json')) {
-        setEvaluations({});
-        setCorrections({});
-        setEditMode({});
-        setOriginalValues({});
-        setResetKey(k => k + 1);
+        const evalPath = getEvalPath(filePath);
+        window.location.href = `?file=${encodeURIComponent(evalPath)}`;
+        return;
       }
       window.location.reload();
     } catch (err) {
@@ -1187,7 +1230,24 @@ export default function EvaluatePage() {
   // Helper to check if an entity is corrected (any field changed from original)
   function isEntityCorrected(entityId: string, entity: Entity): boolean {
     const orig = originalValues[entityId] || {};
-    return Object.keys(entity).some(field => field !== 'judge_score' && field !== 'corrected' && field !== 'corrections' && entity[field] !== orig[field]);
+    const corrections = entity.corrections || {};
+    
+    // Check if there are any corrections
+    if (Array.isArray(corrections)) {
+      // For arrays of primitives, check if any item has a diff
+      return corrections.some((x: any) => x !== undefined);
+    } else if (typeof corrections === 'object' && corrections !== null) {
+      // For objects, check if any field has corrections
+      return Object.keys(corrections).length > 0;
+    }
+    
+    // Fallback: check if any field changed from original
+    return Object.keys(entity).some(field => 
+      field !== 'judge_score' && 
+      field !== 'corrected' && 
+      field !== 'corrections' && 
+      !deepEqual(entity[field], orig[field])
+    );
   }
 
   // Helper to check if all entities are evaluated
@@ -1219,37 +1279,37 @@ export default function EvaluatePage() {
         const entityIndex = parseInt(entityId) - 1;
         if (entities[entityIndex]) {
           const entity = entities[entityIndex];
-          const corrections: any = {};
-          Object.keys(entity).forEach(field => {
-            if (field !== 'approved' && field !== 'corrections' && field !== 'corrected') {
-              const changed = getChangedFields(entity[field], orig[field]);
-              if (changed !== undefined) corrections[field] = orig[field];
-            }
-          });
+          // Use getChangedFieldsMinimal to only include changed subfields
+          let corrections = getChangedFieldsMinimal(entity, orig);
+          // For arrays of objects, filter out undefined entries
+          if (Array.isArray(corrections) && corrections.length > 0 && typeof corrections[0] === 'object' && corrections[0] !== null) {
+            corrections = corrections.map((obj: any) => (obj && Object.keys(obj).length > 0 ? obj : undefined));
+            if (corrections.every((x: any) => x === undefined)) corrections = {};
+          }
           entities[entityIndex] = {
             ...entity,
-            corrections,
-            approved: false,
-            corrected: Object.keys(corrections).length > 0
+            corrections: corrections || {},
+            corrected: corrections && (Array.isArray(corrections) ? corrections.some((x: any) => x !== undefined) : Object.keys(corrections).length > 0)
           };
         }
       } else if (typeof entities === 'object' && entities !== null) {
-        const entityIdKey = entityId as keyof typeof entities;
+        if (typeof modalEntityId !== 'string') return newEvals;
+        const entityIdKey = modalEntityId as keyof typeof entities;
         if (entities[entityIdKey] && Array.isArray(entities[entityIdKey])) {
-          entities[entityIdKey] = (entities[entityIdKey] as any[]).map((entity: any) => {
-            const corrections: any = {};
-            Object.keys(entity).forEach(field => {
-              if (field !== 'approved' && field !== 'corrections' && field !== 'corrected') {
-                const changed = getChangedFields(entity[field], orig[field]);
-                if (changed !== undefined) corrections[field] = orig[field];
+          entities[entityIdKey] = entities[entityIdKey].map((entity: any, idx: number) => {
+            if (idx === (modalEntityIndex || 0)) {
+              const updatedEntity = JSON.parse(JSON.stringify(modalEditEntity));
+              const origEntity = originalValues[modalEntityId] || {};
+              let corrections = getChangedFieldsMinimal(updatedEntity, origEntity);
+              if (Array.isArray(corrections) && corrections.length > 0 && typeof corrections[0] === 'object' && corrections[0] !== null) {
+                corrections = corrections.map((obj: any) => (obj && Object.keys(obj).length > 0 ? obj : undefined));
+                if (corrections.every((x: any) => x === undefined)) corrections = {};
               }
-            });
-            return {
-              ...entity,
-              corrections,
-              approved: false,
-              corrected: Object.keys(corrections).length > 0
-            };
+              updatedEntity.corrections = corrections || {};
+              updatedEntity.corrected = corrections && (Array.isArray(corrections) ? corrections.some((x: any) => x !== undefined) : Object.keys(corrections).length > 0);
+              return updatedEntity;
+            }
+            return entity;
           });
         }
       }
@@ -1284,6 +1344,79 @@ export default function EvaluatePage() {
       prevFilePath.current = filePath;
     }
   }, [filePath]);
+
+  // When opening the modal, initialize modalEditEntity
+  useEffect(() => {
+    if (modalEntityId !== null && modalCandidatePath !== null) {
+      const candidateEntities = evaluations[modalCandidatePath || 'root'];
+      let entity: Entity = {};
+      if (Array.isArray(candidateEntities)) {
+        const entityIndex = parseInt(modalEntityId) - 1;
+        entity = candidateEntities[entityIndex] || {};
+      } else if (typeof candidateEntities === 'object' && candidateEntities !== null) {
+        const entityIdKey = modalEntityId as keyof typeof candidateEntities;
+        if (candidateEntities[entityIdKey] && Array.isArray(candidateEntities[entityIdKey])) {
+          entity = candidateEntities[entityIdKey][modalEntityIndex || 0] || {};
+        }
+      }
+      setModalEditEntity(JSON.parse(JSON.stringify(entity)));
+    }
+  }, [modalEntityId, modalCandidatePath, modalEntityIndex, evaluations]);
+
+  // Handler for updating nested values in the modal local state
+  const handleModalNestedFieldChange = (fieldPath: (string | number)[], value: any) => {
+    setModalEditEntity((prev: any) => setNestedValue(prev, fieldPath, value));
+  };
+
+  // On Save Correction, update the main state using handleFieldChange for all changed fields
+  const handleModalSaveCorrection = () => {
+    if (!modalEditEntity || modalEntityId === null || modalCandidatePath === null) return;
+    // Guard: modalEntityId must be a string
+    if (typeof modalEntityId !== 'string') return;
+    setEvaluations(prev => {
+      const newEvals = { ...prev };
+      if (!newEvals[modalCandidatePath]) newEvals[modalCandidatePath] = {};
+      const entities = newEvals[modalCandidatePath];
+      // Only update the specific entity at the correct index/key
+      if (Array.isArray(entities)) {
+        const entityIndex = parseInt(modalEntityId) - 1;
+        if (entities[entityIndex]) {
+          const updatedEntity = JSON.parse(JSON.stringify(modalEditEntity));
+          const origEntity = originalValues[modalEntityId] || {};
+          let corrections = getChangedFieldsMinimal(updatedEntity, origEntity);
+          if (Array.isArray(corrections) && corrections.length > 0 && typeof corrections[0] === 'object' && corrections[0] !== null) {
+            corrections = corrections.map((obj: any) => (obj && Object.keys(obj).length > 0 ? obj : undefined));
+            if (corrections.every((x: any) => x === undefined)) corrections = {};
+          }
+          updatedEntity.corrections = corrections || {};
+          updatedEntity.corrected = corrections && (Array.isArray(corrections) ? corrections.some((x: any) => x !== undefined) : Object.keys(corrections).length > 0);
+          entities[entityIndex] = updatedEntity;
+        }
+      } else if (typeof entities === 'object' && entities !== null) {
+        if (typeof modalEntityId !== 'string') return newEvals;
+        const entityIdKey = modalEntityId as keyof typeof entities;
+        if (entities[entityIdKey] && Array.isArray(entities[entityIdKey])) {
+          entities[entityIdKey] = entities[entityIdKey].map((entity: any, idx: number) => {
+            if (idx === (modalEntityIndex || 0)) {
+              const updatedEntity = JSON.parse(JSON.stringify(modalEditEntity));
+              const origEntity = originalValues[modalEntityId] || {};
+              let corrections = getChangedFieldsMinimal(updatedEntity, origEntity);
+              if (Array.isArray(corrections) && corrections.length > 0 && typeof corrections[0] === 'object' && corrections[0] !== null) {
+                corrections = corrections.map((obj: any) => (obj && Object.keys(obj).length > 0 ? obj : undefined));
+                if (corrections.every((x: any) => x === undefined)) corrections = {};
+              }
+              updatedEntity.corrections = corrections || {};
+              updatedEntity.corrected = corrections && (Array.isArray(corrections) ? corrections.some((x: any) => x !== undefined) : Object.keys(corrections).length > 0);
+              return updatedEntity;
+            }
+            return entity;
+          });
+        }
+      }
+      return newEvals;
+    });
+    handleCloseModal();
+  };
 
   if (loading) return (
     <div className="container">
@@ -1424,6 +1557,7 @@ export default function EvaluatePage() {
                           data: Object.fromEntries([...allFields].map(f => [f, currentEntity[f]])),
                           origData: orig,
                           corrections: currentEntity.corrections || {},
+                          corrected: isCorrected
                         })}
                       </div>
                     </div>
@@ -1462,34 +1596,28 @@ export default function EvaluatePage() {
                   <div className="text-muted">No editable fields available for this entity.</div>
                 );
               }
-              // Handler for updating nested values
-              const handleNestedFieldChange = (fieldPath: (string | number)[], value: any) => {
-                handleFieldChange(
-                  modalCandidatePath || 'root',
-                  modalEntityId!,
-                  modalEntityIndex || 0,
-                  fieldPath[0] as string,
-                  setNestedValue(entity, fieldPath.slice(1), value)
-                );
-              };
               // Get original values for highlighting
               const origEntity = originalValues[modalEntityId!] || {};
               return (
-                <form onSubmit={e => { e.preventDefault(); handleSaveCorrection(modalEntityId!); handleCloseModal(); }}>
-                  {renderFields({
-                    data: Object.fromEntries(allEntityFields.map(f => [f, entity[f]])),
-                    origData: origEntity,
-                    onChange: handleNestedFieldChange,
-                  })}
-                  <div className="d-flex justify-content-end mt-3">
-                    <Button variant="secondary" onClick={handleCloseModal} className="me-2">
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="warning">
-                      Save Correction
-                    </Button>
-                  </div>
-                </form>
+                !modalEditEntity ? (
+                  <div className="text-center p-4">Loading...</div>
+                ) : (
+                  <form onSubmit={e => { e.preventDefault(); handleModalSaveCorrection(); }}>
+                    {renderFields({
+                      data: Object.fromEntries(allEntityFields.map(f => [f, modalEditEntity[f]])),
+                      origData: origEntity,
+                      onChange: handleModalNestedFieldChange,
+                    })}
+                    <div className="d-flex justify-content-end mt-3">
+                      <Button variant="secondary" onClick={handleCloseModal} className="me-2">
+                        Cancel
+                      </Button>
+                      <Button type="submit" variant="warning">
+                        Save Correction
+                      </Button>
+                    </div>
+                  </form>
+                )
               );
             })()}
           </Modal.Body>
