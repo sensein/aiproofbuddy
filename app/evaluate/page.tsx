@@ -588,8 +588,42 @@ function renderFields({
               {Array.isArray(subVal) ? (
                 <div>
                   {subVal.map((item, idx) => (
-                    <div key={idx} className="border rounded px-2 py-1 mb-1 bg-light">{item}</div>
+                    <div key={idx} className="d-flex align-items-center mb-1">
+                      <input
+                        className="form-control me-2"
+                        value={item}
+                        onChange={e => {
+                          const newArr = [...subVal];
+                          newArr[idx] = e.target.value;
+                          const newMentions = { ...value, [subKey]: newArr };
+                          onChange(fieldPath, newMentions);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={() => {
+                          const newArr = subVal.filter((_, i) => i !== idx);
+                          const newMentions = { ...value, [subKey]: newArr };
+                          onChange(fieldPath, newMentions);
+                        }}
+                        title="Remove"
+                      >
+                        &minus;
+                      </button>
+                    </div>
                   ))}
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm mt-1"
+                    onClick={() => {
+                      const newArr = [...subVal, ''];
+                      const newMentions = { ...value, [subKey]: newArr };
+                      onChange(fieldPath, newMentions);
+                    }}
+                  >
+                    + Add
+                  </button>
                 </div>
               ) : (
                 <input
